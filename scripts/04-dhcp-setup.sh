@@ -320,8 +320,14 @@ verify_local_dhcp() {
     
     # Check if DHCP port is listening
     echo -n "Checking DHCP port (67/UDP)... "
-    if netstat -ulpn 2>/dev/null | grep -q ":67 "; then
-        echo -e "${GREEN}Listening${NC}"
+    # Use systemctl to check if DHCP is actually running and serving
+    if systemctl is-active isc-dhcp-server >/dev/null 2>&1; then
+        # Double-check with port listening
+        if ss -ulpn 2>/dev/null | grep -q ":67" || netstat -ulpn 2>/dev/null | grep -q ":67"; then
+            echo -e "${GREEN}Listening${NC}"
+        else
+            echo -e "${YELLOW}Service active but port check unclear${NC}"
+        fi
     else
         echo -e "${RED}Not listening${NC}"
         echo "DHCP service may not be properly configured"
