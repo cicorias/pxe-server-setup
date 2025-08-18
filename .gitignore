@@ -1,0 +1,4 @@
+artifacts/
+*.log
+*temp.cfg
+

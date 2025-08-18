@@ -59,9 +59,7 @@ pxe-server-setup/
 
 ### ✅ Completed Scripts:
 - **07-pxe-menu.sh** - PXE boot menu creation with professional interface
-
-### 🚧 In Development:
-- **08-iso-manager.sh** - ISO management and mounting utilities
+- **08-iso-manager.sh** - ISO management and mounting utilities with automatic PXE integration
 
 ### 📋 Core Services Status:
 - ✅ **TFTP Server** (tftpd-hpa) - Serving PXE boot files
