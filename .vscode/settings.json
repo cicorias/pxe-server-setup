@@ -1,0 +1,4 @@
+{
+    "chat.todoListTool.enabled": true,
+    "github.copilot.chat.customInstructionsInSystemMessage": true
+}
