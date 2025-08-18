@@ -38,6 +38,7 @@ pxe-server-setup/
 │   ├── 06-http-setup.sh    # HTTP server configuration
 │   ├── 07-pxe-menu.sh      # PXE boot menu configuration
 │   ├── 08-iso-manager.sh   # ISO management utilities
+│   ├── 09-uefi-pxe-setup.sh # UEFI PXE support (Generation 2 VMs)
 │   └── config.sh           # Configuration variables
 ├── artifacts/              # Generated files (excluded from git)
 │   ├── iso/               # ISO storage directory
@@ -60,6 +61,7 @@ pxe-server-setup/
 ### ✅ Completed Scripts:
 - **07-pxe-menu.sh** - PXE boot menu creation with professional interface
 - **08-iso-manager.sh** - ISO management and mounting utilities with automatic PXE integration
+- **09-uefi-pxe-setup.sh** - UEFI PXE support for Generation 2 VMs
 
 ### 📋 Core Services Status:
 - ✅ **TFTP Server** (tftpd-hpa) - Serving PXE boot files
@@ -106,7 +108,17 @@ GATEWAY="10.1.1.1"
 Execute the main installation script:
 
 ```bash
+# Basic installation (prompts for DHCP configuration)
 sudo ./install.sh
+
+# Full installation with UEFI support and local DHCP
+sudo ./install.sh --uefi --local-dhcp
+
+# Installation for external DHCP server
+sudo ./install.sh --external-dhcp
+
+# View all options
+sudo ./install.sh --help
 ```
 
 Or run individual scripts in order:
@@ -120,8 +132,23 @@ sudo ./04-dhcp-setup.sh
 sudo ./05-nfs-setup.sh
 sudo ./06-http-setup.sh
 sudo ./07-pxe-menu.sh
+sudo ./09-uefi-pxe-setup.sh  # Optional: for Generation 2 VM support
 # Add ISOs with: sudo ./08-iso-manager.sh add <iso-file>
 ```
+
+### UEFI Support (Generation 2 VMs)
+
+For modern UEFI systems and Generation 2 VMs, run the UEFI setup script:
+
+```bash
+sudo ./scripts/09-uefi-pxe-setup.sh
+```
+
+This script:
+- Installs GRUB EFI bootloader (`bootx64.efi`)
+- Configures DHCP for automatic client architecture detection
+- Creates GRUB menu for UEFI boot
+- Enables both BIOS (Generation 1) and UEFI (Generation 2) VM support
 
 ## Configuration Options
 
@@ -146,6 +173,39 @@ Place ISO files in the `artifacts/iso/` directory and run:
 ```bash
 sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-server.iso
 ```
+
+### Virtual Machine Support
+
+The PXE server supports both BIOS and UEFI network booting:
+
+#### Hyper-V Virtual Machines
+
+**Generation 1 VMs (BIOS PXE)**:
+- Uses SYSLINUX boot loader (`pxelinux.0`)
+- Full featured menu with diagnostic tools
+- Configured automatically during initial setup
+
+**Generation 2 VMs (UEFI PXE)**:
+- Uses GRUB EFI boot loader (`bootx64.efi`)
+- Simplified GRUB menu interface
+- Requires additional UEFI setup:
+
+```bash
+sudo ./scripts/09-uefi-pxe-setup.sh
+```
+
+**VM Configuration Requirements**:
+- **Network**: Connect to same virtual switch as PXE server
+- **Boot Order**: Network Adapter first, Hard Drive second
+- **Generation 2**: Secure Boot must be **disabled**
+- **DHCP Range**: Client will receive IP in 10.1.1.100-200
+
+#### Other Hypervisors
+
+The PXE server works with any hypervisor supporting standard PXE network boot:
+- **VMware**: Enable "Boot from Network" in VM settings
+- **VirtualBox**: Set Network Adapter to first boot device
+- **QEMU/KVM**: Use `-boot n` for network boot priority
 
 ## Services Installed
 
@@ -315,6 +375,7 @@ sudo systemctl restart nfs-kernel-server
 | `06-http-setup.sh` | HTTP server setup | NFS configured | 🚧 Web installations, configs |
 | `07-pxe-menu.sh` | PXE menu creation | HTTP configured | 🚧 Boot menu, ISO integration |
 | `08-iso-manager.sh` | ISO management | All services ready | 🚧 Add/remove/list ISOs |
+| `09-uefi-pxe-setup.sh` | UEFI PXE support | TFTP & DHCP ready | ✅ Generation 2 VM, GRUB EFI |
 | `validate-pxe.sh` | System validation | Any time | ✅ Service status, connectivity tests |
 
 ### TFTP Server Configuration
