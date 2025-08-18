@@ -155,6 +155,9 @@ sudo ./scripts/01-prerequisites.sh
 
 # 3. Install packages
 sudo ./scripts/02-packages.sh
+
+# 4. Configure TFTP server
+sudo ./scripts/03-tftp-setup.sh
 ```
 
 ### Complete Installation
@@ -229,6 +232,52 @@ sudo journalctl -u nfs-kernel-server -f  # NFS logs
 sudo systemctl restart tftpd-hpa
 sudo systemctl restart nginx
 sudo systemctl restart nfs-kernel-server
+```
+
+### TFTP Server Configuration
+
+The TFTP server is configured automatically by the `03-tftp-setup.sh` script:
+
+```bash
+# Configure TFTP server
+sudo ./scripts/03-tftp-setup.sh
+
+# Manual TFTP testing
+tftp 10.1.1.1
+> get test.txt
+> quit
+
+# Check TFTP port
+sudo netstat -ulpn | grep :69
+
+# View TFTP configuration
+cat /etc/default/tftpd-hpa
+
+# TFTP directory structure
+ls -la /var/lib/tftpboot/
+```
+
+**TFTP Features:**
+- Serves PXE boot files from `/var/lib/tftpboot/`
+- Binds to configured server IP (default: 10.1.1.1:69)
+- Includes automatic verification test
+- Creates proper directory structure for PXE components
+- Sets secure permissions and runs as tftp user
+
+**Troubleshooting TFTP:**
+```bash
+# Check if TFTP is listening
+sudo ss -ulpn | grep :69
+
+# Test TFTP connectivity
+sudo ufw allow 69/udp  # If firewall is enabled
+tftp localhost -c get test.txt
+
+# Check TFTP logs
+sudo journalctl -u tftpd-hpa -n 50
+
+# Restart TFTP service
+sudo systemctl restart tftpd-hpa
 ```
 
 ### Configuration Updates
