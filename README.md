@@ -47,6 +47,26 @@ pxe-server-setup/
     └── troubleshooting.md  # Common issues and solutions
 ```
 
+## Current Implementation Status
+
+### ✅ Completed Scripts:
+- **01-prerequisites.sh** - System validation and requirements checking
+- **02-packages.sh** - Package installation with verification 
+- **03-tftp-setup.sh** - TFTP server configuration and PXE boot files
+- **04-dhcp-setup.sh** - DHCP server (local/external modes) with PXE options
+- **05-nfs-setup.sh** - NFS server for serving installation media
+
+### 🚧 In Development:
+- **06-http-setup.sh** - HTTP server configuration (nginx)
+- **07-pxe-menu.sh** - PXE boot menu creation
+- **08-iso-manager.sh** - ISO management and mounting utilities
+
+### 📋 Core Services Status:
+- ✅ **TFTP Server** (tftpd-hpa) - Serving PXE boot files
+- ✅ **DHCP Server** (isc-dhcp-server) - Network boot configuration  
+- ✅ **NFS Server** (nfs-kernel-server) - Installation media serving
+- 🚧 **HTTP Server** (nginx) - Web-based installations and configs
+
 ## Quick Start
 
 ### 1. Clone the Repository
@@ -181,6 +201,25 @@ sudo ./scripts/02-packages.sh
 
 # 4. Configure TFTP server
 sudo ./scripts/03-tftp-setup.sh
+
+# 5. Validate PXE server components
+./scripts/validate-pxe.sh
+```
+
+### PXE Server Validation
+
+Use the validation script to check the status of all PXE server components:
+
+```bash
+# Quick validation of all services
+./scripts/validate-pxe.sh
+
+# Check individual services
+systemctl status tftpd-hpa isc-dhcp-server nfs-kernel-server
+
+# Test network connectivity
+ping 10.1.1.1
+showmount -e 10.1.1.1
 ```
 
 ### Complete Installation
@@ -244,18 +283,34 @@ sudo ./scripts/08-iso-manager.sh remove <iso-file>
 
 ```bash
 # Check service status
-systemctl status tftpd-hpa nfs-kernel-server nginx
+systemctl status tftpd-hpa isc-dhcp-server nfs-kernel-server nginx
 
 # View service logs
 sudo journalctl -u tftpd-hpa -f    # TFTP logs
+sudo journalctl -u isc-dhcp-server -f  # DHCP logs
 sudo journalctl -u nginx -f        # HTTP logs
 sudo journalctl -u nfs-kernel-server -f  # NFS logs
 
 # Restart services
 sudo systemctl restart tftpd-hpa
+sudo systemctl restart isc-dhcp-server
 sudo systemctl restart nginx
 sudo systemctl restart nfs-kernel-server
 ```
+
+### Script Reference
+
+| Script | Purpose | Prerequisites | Key Features |
+|--------|---------|---------------|--------------|
+| `01-prerequisites.sh` | System validation | Root access | ✅ OS version, disk space, network validation |
+| `02-packages.sh` | Package installation | Prerequisites passed | ✅ Service installation & verification |
+| `03-tftp-setup.sh` | TFTP server setup | Packages installed | ✅ PXE boot files, service configuration |
+| `04-dhcp-setup.sh` | DHCP configuration | Network config set | ✅ Local/external modes, PXE options |
+| `05-nfs-setup.sh` | NFS server setup | Network config set | ✅ ISO serving, directory structure |
+| `06-http-setup.sh` | HTTP server setup | NFS configured | 🚧 Web installations, configs |
+| `07-pxe-menu.sh` | PXE menu creation | HTTP configured | 🚧 Boot menu, ISO integration |
+| `08-iso-manager.sh` | ISO management | All services ready | 🚧 Add/remove/list ISOs |
+| `validate-pxe.sh` | System validation | Any time | ✅ Service status, connectivity tests |
 
 ### TFTP Server Configuration
 
@@ -387,6 +442,75 @@ sudo nmap --script broadcast-dhcp-discover
 
 # Verify PXE options
 sudo dhcping -c 10.1.1.1 -s 10.1.1.1
+```
+
+### NFS Server Configuration
+
+The NFS server provides installation media and files to PXE clients during the boot and installation process:
+
+```bash
+# Configure NFS server for serving ISO files
+sudo ./scripts/05-nfs-setup.sh
+
+# Check NFS service status
+sudo systemctl status nfs-kernel-server rpcbind
+
+# View NFS exports
+sudo exportfs -v
+showmount -e 10.1.1.1
+
+# Monitor NFS activity
+sudo journalctl -u nfs-kernel-server -f
+nfsstat -s
+```
+
+**NFS Features:**
+- Serves installation media from `/srv/nfs/iso/`
+- Supports kickstart/preseed configs in `/srv/nfs/kickstart/` and `/srv/nfs/preseed/`
+- Network-restricted access (10.1.1.0/24 only)
+- Read-only mounts for security
+- Automated service startup and verification
+
+**NFS Directory Structure:**
+```
+/srv/nfs/
+├── iso/          (mounted ISO files for installation)
+├── kickstart/    (Red Hat/CentOS automated install configs)
+├── preseed/      (Debian/Ubuntu automated install configs)
+└── scripts/      (post-installation scripts)
+```
+
+**Testing NFS:**
+```bash
+# Test NFS mount from PXE server
+mkdir /tmp/nfs_test
+sudo mount -t nfs 10.1.1.1:/srv/nfs/iso /tmp/nfs_test
+ls -la /tmp/nfs_test
+sudo umount /tmp/nfs_test
+
+# Check NFS exports
+sudo exportfs -v
+
+# Validate PXE server components
+./scripts/validate-pxe.sh
+```
+
+**Troubleshooting NFS:**
+```bash
+# Check NFS ports
+sudo ss -tlpn | grep :2049  # NFS
+sudo ss -ulpn | grep :111   # RPC portmapper
+
+# Test NFS connectivity
+rpcinfo -p 10.1.1.1
+
+# Check export permissions
+sudo exportfs -ra  # Re-export all
+sudo showmount -e localhost
+
+# NFS service logs
+sudo journalctl -u nfs-kernel-server -n 50
+sudo journalctl -u rpcbind -n 20
 ```
 
 ### Configuration Updates
