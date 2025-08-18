@@ -57,8 +57,10 @@ pxe-server-setup/
 - **05-nfs-setup.sh** - NFS server for serving installation media
 - **06-http-setup.sh** - HTTP server configuration (nginx)
 
+### ✅ Completed Scripts:
+- **07-pxe-menu.sh** - PXE boot menu creation with professional interface
+
 ### 🚧 In Development:
-- **07-pxe-menu.sh** - PXE boot menu creation
 - **08-iso-manager.sh** - ISO management and mounting utilities
 
 ### 📋 Core Services Status:
@@ -115,7 +117,12 @@ Or run individual scripts in order:
 cd scripts
 sudo ./01-prerequisites.sh
 sudo ./02-packages.sh
-# ... continue with remaining scripts
+sudo ./03-tftp-setup.sh
+sudo ./04-dhcp-setup.sh
+sudo ./05-nfs-setup.sh
+sudo ./06-http-setup.sh
+sudo ./07-pxe-menu.sh
+# Add ISOs with: sudo ./08-iso-manager.sh add <iso-file>
 ```
 
 ## Configuration Options
