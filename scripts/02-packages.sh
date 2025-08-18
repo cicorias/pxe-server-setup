@@ -282,46 +282,71 @@ cleanup_packages() {
 verify_installations() {
     echo -e "${BLUE}Verifying package installations...${NC}"
     
-    local services=(
-        "tftpd-hpa:TFTP server"
-        "nfs-kernel-server:NFS server"
-        "$HTTP_SERVICE:HTTP server"
-        "isc-dhcp-server:DHCP server"
-    )
-    
     echo "Service status:"
-    for service_info in "${services[@]}"; do
-        local service=$(echo "$service_info" | cut -d: -f1)
-        local description=$(echo "$service_info" | cut -d: -f2)
-        
-        echo -n "  $description... "
-        if systemctl list-unit-files | grep -q "^$service"; then
-            echo -e "${GREEN}Installed${NC}"
-        else
-            echo -e "${RED}Missing${NC}"
-        fi
-    done
+    
+    # Use systemctl status instead of list-unit-files
+    echo -n "  TFTP server... "
+    if systemctl status tftpd-hpa >/dev/null 2>&1 || systemctl list-unit-files tftpd-hpa.service >/dev/null 2>&1; then
+        echo -e "${GREEN}Installed${NC}"
+    else
+        echo -e "${RED}Missing${NC}"
+    fi
+    
+    echo -n "  NFS server... "
+    if systemctl status nfs-server >/dev/null 2>&1 || systemctl list-unit-files nfs-server.service >/dev/null 2>&1; then
+        echo -e "${GREEN}Installed${NC}"
+    else
+        echo -e "${RED}Missing${NC}"
+    fi
+    
+    echo -n "  HTTP server... "
+    if systemctl status nginx >/dev/null 2>&1 || systemctl list-unit-files nginx.service >/dev/null 2>&1; then
+        echo -e "${GREEN}Installed${NC}"
+    else
+        echo -e "${RED}Missing${NC}"
+    fi
+    
+    echo -n "  DHCP server... "
+    if systemctl status isc-dhcp-server >/dev/null 2>&1 || systemctl list-unit-files isc-dhcp-server.service >/dev/null 2>&1; then
+        echo -e "${GREEN}Installed${NC}"
+    else
+        echo -e "${RED}Missing${NC}"
+    fi
     
     echo
-    echo "Key commands:"
-    local commands=(
-        "pxelinux:PXE bootloader"
-        "mkisofs:ISO creation"
-        "rsync:File synchronization"
-        "7z:Archive extraction"
-    )
+    echo "Key files and commands:"
     
-    for cmd_info in "${commands[@]}"; do
-        local cmd=$(echo "$cmd_info" | cut -d: -f1)
-        local description=$(echo "$cmd_info" | cut -d: -f2)
-        
-        echo -n "  $description ($cmd)... "
-        if command -v "$cmd" >/dev/null 2>&1; then
-            echo -e "${GREEN}Available${NC}"
-        else
-            echo -e "${YELLOW}Missing${NC}"
-        fi
-    done
+    # Check PXE bootloader file
+    echo -n "  PXE bootloader (/usr/lib/PXELINUX/pxelinux.0)... "
+    if [[ -f "/usr/lib/PXELINUX/pxelinux.0" ]]; then
+        echo -e "${GREEN}Available${NC}"
+    else
+        echo -e "${YELLOW}Missing${NC}"
+    fi
+    
+    # Check ISO creation command
+    echo -n "  ISO creation (mkisofs)... "
+    if command -v "mkisofs" >/dev/null 2>&1; then
+        echo -e "${GREEN}Available${NC}"
+    else
+        echo -e "${YELLOW}Missing${NC}"
+    fi
+    
+    # Check file synchronization command
+    echo -n "  File synchronization (rsync)... "
+    if command -v "rsync" >/dev/null 2>&1; then
+        echo -e "${GREEN}Available${NC}"
+    else
+        echo -e "${YELLOW}Missing${NC}"
+    fi
+    
+    # Check archive extraction command
+    echo -n "  Archive extraction (7z)... "
+    if command -v "7z" >/dev/null 2>&1; then
+        echo -e "${GREEN}Available${NC}"
+    else
+        echo -e "${YELLOW}Missing${NC}"
+    fi
 }
 
 # Function to display next steps
