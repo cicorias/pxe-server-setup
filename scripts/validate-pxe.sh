@@ -55,9 +55,30 @@ else
     echo "  ✗ NFS service not running"
 fi
 
+# Check HTTP
+echo
+echo "4. HTTP Service:"
+if systemctl is-active nginx >/dev/null 2>&1; then
+    echo "  ✓ HTTP service is running"
+    if ss -tlpn | grep -q ":80"; then
+        echo "  ✓ HTTP port 80 is listening"
+    else
+        echo "  ✗ HTTP port 80 not listening"
+    fi
+    
+    # Test HTTP response
+    if curl -s -o /dev/null -w "%{http_code}" "http://10.1.1.1/" 2>/dev/null | grep -q "200"; then
+        echo "  ✓ HTTP server responding"
+    else
+        echo "  ✗ HTTP server not responding"
+    fi
+else
+    echo "  ✗ HTTP service not running"
+fi
+
 # Check network configuration
 echo
-echo "4. Network Configuration:"
+echo "5. Network Configuration:"
 if ip addr show | grep -q "10.1.1.1"; then
     echo "  ✓ PXE server IP (10.1.1.1) configured"
 else
@@ -66,7 +87,7 @@ fi
 
 # Check files
 echo
-echo "5. PXE Files:"
+echo "6. PXE Files:"
 if [[ -f /var/lib/tftpboot/pxelinux.0 ]]; then
     echo "  ✓ PXE boot loader present"
 else
@@ -81,9 +102,9 @@ fi
 
 echo
 echo "=== Summary ==="
-echo "PXE server basic components are configured."
+echo "PXE server core services are configured and running."
 echo "Next steps:"
-echo "1. Set up HTTP server: sudo ./scripts/06-http-setup.sh"
-echo "2. Create PXE menu: sudo ./scripts/07-pxe-menu.sh"
-echo "3. Add actual ISO: sudo ./scripts/08-iso-manager.sh add <iso-file>"
+echo "1. Create PXE menu: sudo ./scripts/07-pxe-menu.sh"
+echo "2. Add actual ISO: sudo ./scripts/08-iso-manager.sh add <iso-file>"
+echo "3. Test PXE boot with a client machine"
 echo

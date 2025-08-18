@@ -55,9 +55,9 @@ pxe-server-setup/
 - **03-tftp-setup.sh** - TFTP server configuration and PXE boot files
 - **04-dhcp-setup.sh** - DHCP server (local/external modes) with PXE options
 - **05-nfs-setup.sh** - NFS server for serving installation media
+- **06-http-setup.sh** - HTTP server configuration (nginx)
 
 ### 🚧 In Development:
-- **06-http-setup.sh** - HTTP server configuration (nginx)
 - **07-pxe-menu.sh** - PXE boot menu creation
 - **08-iso-manager.sh** - ISO management and mounting utilities
 
@@ -65,7 +65,7 @@ pxe-server-setup/
 - ✅ **TFTP Server** (tftpd-hpa) - Serving PXE boot files
 - ✅ **DHCP Server** (isc-dhcp-server) - Network boot configuration  
 - ✅ **NFS Server** (nfs-kernel-server) - Installation media serving
-- 🚧 **HTTP Server** (nginx) - Web-based installations and configs
+- ✅ **HTTP Server** (nginx) - Web-based installations and configs
 
 ## Quick Start
 
