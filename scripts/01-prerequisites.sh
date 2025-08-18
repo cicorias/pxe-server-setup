@@ -17,13 +17,42 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
     source "$SCRIPT_DIR/config.sh"
 else
-    echo -e "${YELLOW}Warning: config.sh not found. Using default values.${NC}"
-    echo "Please copy config.sh.example to config.sh and configure your settings."
-    # Set default values
-    MIN_DISK_SPACE_GB=20
-    REQUIRED_MEMORY_MB=2048
-    PXE_SERVER_IP="192.168.1.10"
-    NETWORK_INTERFACE="eth0"
+    echo -e "${RED}Error: config.sh not found.${NC}"
+    echo "Please copy config.sh.example to config.sh and configure your settings:"
+    echo "  cp $SCRIPT_DIR/config.sh.example $SCRIPT_DIR/config.sh"
+    echo "  nano $SCRIPT_DIR/config.sh"
+    echo
+    echo "Required network settings must be configured:"
+    echo "  - NETWORK_INTERFACE"
+    echo "  - PXE_SERVER_IP" 
+    echo "  - SUBNET"
+    echo "  - NETMASK"
+    echo "  - GATEWAY"
+    exit 1
+fi
+
+# Validate required network configuration
+echo -n "Validating required network configuration... "
+required_vars=("NETWORK_INTERFACE" "PXE_SERVER_IP" "SUBNET" "NETMASK" "GATEWAY")
+missing_vars=()
+
+for var in "${required_vars[@]}"; do
+    if [[ -z "${!var}" ]]; then
+        missing_vars+=("$var")
+    fi
+done
+
+if [[ ${#missing_vars[@]} -gt 0 ]]; then
+    echo -e "${RED}FAILED${NC}"
+    echo "Error: Missing required network configuration variables in config.sh:"
+    for var in "${missing_vars[@]}"; do
+        echo "  - $var"
+    done
+    echo
+    echo "Please edit $SCRIPT_DIR/config.sh and set all required network variables."
+    exit 1
+else
+    echo -e "${GREEN}OK${NC}"
 fi
 
 echo "=== PXE Server Prerequisites Check ==="

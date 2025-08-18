@@ -56,13 +56,29 @@ git clone https://github.com/yourusername/pxe-server-setup.git
 cd pxe-server-setup
 ```
 
-### 2. Configure Settings
+### 2. Configure Settings (Required)
 
-Edit the configuration file to match your network environment:
+**⚠️ Configuration is mandatory** - Edit the configuration file to match your network environment:
 
 ```bash
 cp scripts/config.sh.example scripts/config.sh
 nano scripts/config.sh
+```
+
+**Required Network Settings:**
+- `NETWORK_INTERFACE` - Your network interface (e.g., eth0, ens192)
+- `PXE_SERVER_IP` - Static IP address for the PXE server  
+- `SUBNET` - Network subnet (e.g., 10.1.1.0)
+- `NETMASK` - Subnet mask (e.g., 255.255.255.0)
+- `GATEWAY` - Default gateway IP address
+
+**Example Configuration:**
+```bash
+NETWORK_INTERFACE="eth0"
+PXE_SERVER_IP="10.1.1.1"
+SUBNET="10.1.1.0"
+NETMASK="255.255.255.0"
+GATEWAY="10.1.1.1"
 ```
 
 ### 3. Run Installation
@@ -143,12 +159,19 @@ network:
 
 ### Prerequisites Setup
 
-Before running the installation scripts, ensure your system meets the requirements:
+**⚠️ Configuration is mandatory before running any scripts:**
 
 ```bash
-# 1. Configure settings
+# 1. Configure network settings (REQUIRED)
 cp scripts/config.sh.example scripts/config.sh
 nano scripts/config.sh
+
+# Set these required variables:
+# NETWORK_INTERFACE="eth0"
+# PXE_SERVER_IP="10.1.1.1" 
+# SUBNET="10.1.1.0"
+# NETMASK="255.255.255.0"
+# GATEWAY="10.1.1.1"
 
 # 2. Run prerequisites check
 sudo ./scripts/01-prerequisites.sh

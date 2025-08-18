@@ -18,13 +18,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
     source "$SCRIPT_DIR/config.sh"
 else
-    echo -e "${YELLOW}Warning: config.sh not found. Using default values.${NC}"
-    echo "Please copy config.sh.example to config.sh and configure your settings."
-    # Set default values
-    TFTP_ROOT="/var/lib/tftpboot"
-    NETWORK_INTERFACE="eth0"
-    PXE_SERVER_IP="10.1.1.1"
-    ARTIFACTS_DIR="$(dirname "$SCRIPT_DIR")/artifacts"
+    echo -e "${RED}Error: config.sh not found.${NC}"
+    echo "Please copy config.sh.example to config.sh and configure your settings:"
+    echo "  cp $SCRIPT_DIR/config.sh.example $SCRIPT_DIR/config.sh"
+    echo "  nano $SCRIPT_DIR/config.sh"
+    echo
+    echo "Required network settings must be configured before setting up TFTP."
+    exit 1
+fi
+
+# Validate required network configuration
+required_vars=("NETWORK_INTERFACE" "PXE_SERVER_IP" "SUBNET" "NETMASK" "GATEWAY" "TFTP_ROOT")
+missing_vars=()
+
+for var in "${required_vars[@]}"; do
+    if [[ -z "${!var}" ]]; then
+        missing_vars+=("$var")
+    fi
+done
+
+if [[ ${#missing_vars[@]} -gt 0 ]]; then
+    echo -e "${RED}Error: Missing required configuration variables in config.sh:${NC}"
+    for var in "${missing_vars[@]}"; do
+        echo "  - $var"
+    done
+    echo
+    echo "Please edit $SCRIPT_DIR/config.sh and set all required variables."
+    exit 1
 fi
 
 echo "=== TFTP Server Configuration ==="
