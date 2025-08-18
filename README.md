@@ -303,6 +303,92 @@ sudo journalctl -u tftpd-hpa -n 50
 sudo systemctl restart tftpd-hpa
 ```
 
+### DHCP Server Configuration
+
+The PXE server supports both local DHCP and integration with existing network DHCP servers:
+
+#### Local DHCP Server
+
+```bash
+# Configure local DHCP server (creates ISC DHCP server)
+sudo ./scripts/04-dhcp-setup.sh --local
+
+# Check DHCP service status
+sudo systemctl status isc-dhcp-server
+
+# Monitor DHCP requests and leases
+sudo journalctl -u isc-dhcp-server -f
+sudo tail -f /var/lib/dhcp/dhcpd.leases
+
+# Check DHCP configuration
+sudo dhcpd -t -cf /etc/dhcp/dhcpd.conf
+```
+
+**Local DHCP Features:**
+- Automatic PXE boot options for BIOS and UEFI clients
+- Architecture-specific boot file selection
+- Configurable IP range and lease times
+- Integration with PXE server IP settings
+- Support for static reservations
+
+#### External DHCP Server
+
+```bash
+# Configure for existing network DHCP
+sudo ./scripts/04-dhcp-setup.sh --external
+
+# Run DHCP validation check
+sudo /usr/local/bin/pxe-dhcp-check
+```
+
+**Required DHCP Options for External Server:**
+- **Option 66** (TFTP Server Name): `10.1.1.1`
+- **Option 67** (Boot Filename): `pxelinux.0` (BIOS) or `bootx64.efi` (UEFI)
+- **Next Server**: `10.1.1.1`
+
+**External DHCP Examples:**
+
+*Windows DHCP Server:*
+```
+1. Open DHCP Management Console
+2. Configure Scope Options:
+   - Option 066: 10.1.1.1
+   - Option 067: pxelinux.0
+3. Restart DHCP service
+```
+
+*pfSense DHCP:*
+```
+Services → DHCP Server → Network booting:
+- Next Server: 10.1.1.1
+- Default BIOS file: pxelinux.0
+- UEFI 64 bit file: bootx64.efi
+```
+
+*ISC DHCP (dhcpd.conf):*
+```bash
+subnet 10.1.1.0 netmask 255.255.255.0 {
+    next-server 10.1.1.1;
+    option tftp-server-name "10.1.1.1";
+    filename "pxelinux.0";
+}
+```
+
+**Troubleshooting DHCP:**
+```bash
+# Test DHCP lease renewal
+sudo dhclient -r eth0 && sudo dhclient eth0
+
+# Monitor DHCP traffic
+sudo tcpdump -i eth0 port 67 or port 68
+
+# Check for DHCP conflicts (if nmap available)
+sudo nmap --script broadcast-dhcp-discover
+
+# Verify PXE options
+sudo dhcping -c 10.1.1.1 -s 10.1.1.1
+```
+
 ### Configuration Updates
 
 ```bash
