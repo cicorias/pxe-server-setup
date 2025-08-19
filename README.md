@@ -57,8 +57,6 @@ pxe-server-setup/
 - **04-dhcp-setup.sh** - DHCP server (local/external modes) with PXE options
 - **05-nfs-setup.sh** - NFS server for serving installation media
 - **06-http-setup.sh** - HTTP server configuration (nginx)
-
-### ✅ Completed Scripts:
 - **07-pxe-menu.sh** - PXE boot menu creation with professional interface
 - **08-iso-manager.sh** - ISO management and mounting utilities with automatic PXE integration
 - **09-uefi-pxe-setup.sh** - UEFI PXE support for Generation 2 VMs
