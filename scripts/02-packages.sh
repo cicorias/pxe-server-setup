@@ -60,6 +60,11 @@ check_root() {
 # Function to update package lists
 update_packages() {
     echo -e "${BLUE}Updating package lists...${NC}"
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "[DRY RUN] Would run: apt update"
+        return 0
+    fi
+    
     if apt update; then
         echo -e "${GREEN}Package lists updated successfully${NC}"
     else
@@ -71,6 +76,12 @@ update_packages() {
 # Function to upgrade existing packages
 upgrade_packages() {
     echo -e "${BLUE}Upgrading existing packages...${NC}"
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "[DRY RUN] Would run: DEBIAN_FRONTEND=noninteractive apt upgrade -y"
+        echo "[DRY RUN] This may take several minutes in real execution..."
+        return 0
+    fi
+    
     echo "This may take several minutes..."
     
     # Use DEBIAN_FRONTEND=noninteractive to avoid prompts
@@ -101,6 +112,19 @@ install_core_packages() {
     
     echo "Installing: ${core_packages[*]}"
     
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "[DRY RUN] Would run: DEBIAN_FRONTEND=noninteractive apt install -y ${core_packages[*]}"
+        echo "[DRY RUN] Packages to be installed:"
+        for pkg in "${core_packages[@]}"; do
+            if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+                echo "[DRY RUN]   $pkg (already installed)"
+            else
+                echo "[DRY RUN]   $pkg (new installation)"
+            fi
+        done
+        return 0
+    fi
+    
     if DEBIAN_FRONTEND=noninteractive apt install -y "${core_packages[@]}"; then
         echo -e "${GREEN}Core packages installed successfully${NC}"
     else
@@ -119,6 +143,19 @@ install_tftp_server() {
     )
     
     echo "Installing: ${tftp_packages[*]}"
+    
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo "[DRY RUN] Would run: DEBIAN_FRONTEND=noninteractive apt install -y ${tftp_packages[*]}"
+        echo "[DRY RUN] Would check and potentially start tftpd-hpa service"
+        for pkg in "${tftp_packages[@]}"; do
+            if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+                echo "[DRY RUN]   $pkg (already installed)"
+            else
+                echo "[DRY RUN]   $pkg (new installation)"
+            fi
+        done
+        return 0
+    fi
     
     if DEBIAN_FRONTEND=noninteractive apt install -y "${tftp_packages[@]}"; then
         echo -e "${GREEN}TFTP server installed successfully${NC}"

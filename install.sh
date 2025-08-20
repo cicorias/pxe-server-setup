@@ -47,6 +47,7 @@ fi
 # Parse command line arguments
 ENABLE_UEFI=false
 DHCP_MODE=""
+DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -62,6 +63,10 @@ while [[ $# -gt 0 ]]; do
             DHCP_MODE="--external"
             shift
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         --help|-h)
             echo "PXE Server Installation Script"
             echo ""
@@ -71,12 +76,14 @@ while [[ $# -gt 0 ]]; do
             echo "  --uefi              Enable UEFI support for Generation 2 VMs"
             echo "  --local-dhcp        Configure local DHCP server"
             echo "  --external-dhcp     Configure for external DHCP server"
+            echo "  --dry-run           Show what would be changed without making changes"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
             echo "  sudo $0                           # Basic setup with prompts"
             echo "  sudo $0 --uefi --local-dhcp      # Full setup with UEFI and local DHCP"
             echo "  sudo $0 --external-dhcp          # Setup for external DHCP"
+            echo "  sudo $0 --dry-run                # Preview changes without applying"
             exit 0
             ;;
         *)
@@ -87,10 +94,26 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-print_header "PXE Server Setup - Starting Installation"
+if [[ "$DRY_RUN" == "true" ]]; then
+    print_header "PXE Server Setup - DRY RUN MODE"
+    print_warning "This is a dry run - no changes will be made to the system"
+    echo ""
+else
+    print_header "PXE Server Setup - Starting Installation"
+fi
+
+# Export DRY_RUN for child scripts
+export DRY_RUN
 
 # Change to scripts directory
 cd scripts
+
+# Create system backup before making any changes
+if [[ "$DRY_RUN" != "true" ]]; then
+    print_header "Creating System Backup"
+    ./system-backup.sh backup
+    echo ""
+fi
 
 # Step 1: Prerequisites
 print_header "Step 1: Checking Prerequisites"
@@ -137,29 +160,45 @@ else
 fi
 
 # Final validation
-print_header "Final Validation"
-./validate-pxe.sh
-
-print_header "Installation Complete!"
-echo ""
-print_status "PXE Server setup completed successfully!"
-echo ""
-print_status "Next steps:"
-print_status "1. Add ISO files to artifacts/iso/ directory"
-print_status "2. Run: sudo ./scripts/08-iso-manager.sh add <iso-file>"
-print_status "3. Configure client machines to boot from network"
-echo ""
-
-if [[ "$ENABLE_UEFI" == "true" ]]; then
-    print_status "UEFI Support Enabled:"
-    print_status "  - Generation 1 VMs: Use Legacy BIOS boot"
-    print_status "  - Generation 2 VMs: Use UEFI boot"
-else
-    print_warning "UEFI Support Not Enabled:"
-    print_status "  - Only Generation 1 VMs (BIOS) are supported"
-    print_status "  - Run 'sudo ./scripts/09-uefi-pxe-setup.sh' to add Generation 2 VM support"
+if [[ "$DRY_RUN" != "true" ]]; then
+    print_header "Final Validation"
+    ./validate-pxe.sh
 fi
 
-echo ""
-print_status "For troubleshooting, see: docs/troubleshooting.md"
-print_status "For VM configuration, see VM Support section in README.md"
+if [[ "$DRY_RUN" == "true" ]]; then
+    print_header "Dry Run Complete!"
+    echo ""
+    print_status "DRY RUN SUMMARY:"
+    print_status "The above steps show what would be done during installation."
+    print_status "No actual changes were made to your system."
+    echo ""
+    print_status "To perform the actual installation, run:"
+    print_status "  sudo $0 $(echo "$@" | sed 's/--dry-run//')"
+    echo ""
+    print_status "Review the deployment analysis for more information:"
+    print_status "  docs/deployment-analysis.md"
+else
+    print_header "Installation Complete!"
+    echo ""
+    print_status "PXE Server setup completed successfully!"
+    echo ""
+    print_status "Next steps:"
+    print_status "1. Add ISO files to artifacts/iso/ directory"
+    print_status "2. Run: sudo ./scripts/08-iso-manager.sh add <iso-file>"
+    print_status "3. Configure client machines to boot from network"
+    echo ""
+
+    if [[ "$ENABLE_UEFI" == "true" ]]; then
+        print_status "UEFI Support Enabled:"
+        print_status "  - Generation 1 VMs: Use Legacy BIOS boot"
+        print_status "  - Generation 2 VMs: Use UEFI boot"
+    else
+        print_warning "UEFI Support Not Enabled:"
+        print_status "  - Only Generation 1 VMs (BIOS) are supported"
+        print_status "  - Run 'sudo ./scripts/09-uefi-pxe-setup.sh' to add Generation 2 VM support"
+    fi
+
+    echo ""
+    print_status "For troubleshooting, see: docs/troubleshooting.md"
+    print_status "For VM configuration, see VM Support section in README.md"
+fi
