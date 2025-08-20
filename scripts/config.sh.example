@@ -26,8 +26,8 @@ DHCP_LEASE_TIME="86400"                # Lease time in seconds (24h)
 TFTP_ROOT="/var/lib/tftpboot"          # TFTP root directory
 NFS_ROOT="/srv/nfs"                    # NFS export root (mounted ISOs here)
 HTTP_ROOT="/var/www/html/pxe"          # HTTP document root (symlinks only)
-ISO_DIR="$(pwd)/../artifacts/iso"      # ISO storage directory
-ARTIFACTS_DIR="$(pwd)/../artifacts"    # Artifacts base directory
+ISO_DIR="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")/artifacts/iso"      # ISO storage directory
+ARTIFACTS_DIR="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")/artifacts"    # Artifacts base directory
 
 # Service Configuration
 TFTP_SERVICE="tftpd-hpa"               # TFTP service name
