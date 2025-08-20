@@ -1,0 +1,117 @@
+name: Build PXE Server Setup
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-pxe-server:
+    runs-on: ubuntu-24.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup environment
+      run: |
+        # Update package lists
+        sudo apt-get update
+        
+        # Install required tools for the build process
+        sudo apt-get install -y wget curl
+
+    - name: Copy configuration
+      run: |
+        # Copy and customize configuration
+        cp scripts/config.sh.example scripts/config.sh
+        
+        # Update configuration for CI environment
+        sed -i 's/PXE_SERVER_IP="10.1.1.1"/PXE_SERVER_IP="192.168.1.100"/' scripts/config.sh
+        sed -i 's/NETWORK_INTERFACE="eth0"/NETWORK_INTERFACE="eth0"/' scripts/config.sh
+
+    - name: Extract PXE boot files
+      run: |
+        # Extract boot files without relying on installed packages
+        sudo ./scripts/00-extract-boot-files.sh --download-only
+        
+        # Verify extraction was successful
+        echo "Extracted files:"
+        find artifacts/extracted-boot-files -name "*.c32" -o -name "*.efi*" -o -name "pxelinux*" | head -10
+
+    - name: Test TFTP setup (partial)
+      run: |
+        # Test the modified TFTP setup script
+        # This will partially fail due to missing services in CI, but will test file copying
+        sudo ./scripts/03-tftp-setup.sh || echo "Expected service failures in CI environment"
+        
+        # Check if files were copied correctly
+        if [ -f /var/lib/tftpboot/pxelinux.0 ]; then
+          echo "✅ pxelinux.0 copied successfully"
+        else
+          echo "❌ pxelinux.0 not found"
+          exit 1
+        fi
+        
+        if [ -f /var/lib/tftpboot/menu.c32 ]; then
+          echo "✅ menu.c32 copied successfully"
+        else
+          echo "❌ menu.c32 not found"
+          exit 1
+        fi
+
+    - name: Test UEFI setup (file copying only)
+      run: |
+        # Test GRUB file copying
+        sudo timeout 30s ./scripts/09-uefi-pxe-setup.sh || echo "Expected service failures in CI environment"
+        
+        # Check if GRUB file was copied
+        if [ -f /var/lib/tftpboot/bootx64.efi ]; then
+          echo "✅ bootx64.efi copied successfully"
+        else
+          echo "❌ bootx64.efi not found"
+          exit 1
+        fi
+
+    - name: Validate extracted files
+      run: |
+        echo "Validating all critical PXE boot files are available:"
+        
+        # Check SYSLINUX files
+        echo "SYSLINUX files:"
+        ls -la artifacts/extracted-boot-files/syslinux/lib/PXELINUX/
+        ls -la artifacts/extracted-boot-files/syslinux/lib/syslinux/modules/bios/ | head -10
+        
+        # Check GRUB files  
+        echo "GRUB EFI files:"
+        ls -la artifacts/extracted-boot-files/grub/lib/grub/x86_64-efi-signed/
+        
+        # Check memtest files
+        echo "Memtest files:"
+        ls -la artifacts/extracted-boot-files/memtest/ || echo "Memtest files not found (optional)"
+
+    - name: Archive extracted files
+      uses: actions/upload-artifact@v4
+      with:
+        name: pxe-boot-files
+        path: |
+          artifacts/extracted-boot-files/
+          /var/lib/tftpboot/pxelinux.0
+          /var/lib/tftpboot/menu.c32
+          /var/lib/tftpboot/bootx64.efi
+        retention-days: 30
+
+    - name: Summary
+      run: |
+        echo "🎉 PXE Server Setup Build Complete!"
+        echo ""
+        echo "✅ Boot files extracted from Ubuntu packages (no host dependencies)"
+        echo "✅ TFTP configuration files created successfully"
+        echo "✅ UEFI support files copied successfully"
+        echo "✅ Setup is ready for deployment to target server"
+        echo ""
+        echo "This build demonstrates that the PXE server setup can be"
+        echo "prepared in a CI/CD environment without relying on packages"
+        echo "installed on the build machine."

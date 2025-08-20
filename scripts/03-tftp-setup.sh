@@ -27,6 +27,10 @@ else
     exit 1
 fi
 
+# Default paths for extracted files
+EXTRACTED_FILES_DIR="${ARTIFACTS_DIR}/extracted-boot-files"
+SYSLINUX_FILES_DIR="${EXTRACTED_FILES_DIR}/syslinux"
+
 # Validate required network configuration
 required_vars=("NETWORK_INTERFACE" "PXE_SERVER_IP" "SUBNET" "NETMASK" "GATEWAY" "TFTP_ROOT")
 missing_vars=()
@@ -48,6 +52,37 @@ if [[ ${#missing_vars[@]} -gt 0 ]]; then
 fi
 
 echo "=== TFTP Server Configuration ==="
+
+# Function to copy file from extracted location or fallback to host system
+copy_boot_file() {
+    local filename="$1"
+    local extracted_path="$2"
+    local host_path="$3"
+    local destination="$4"
+    
+    if [[ -f "$extracted_path" ]]; then
+        echo -n "  Copying $filename from extracted files... "
+        if cp "$extracted_path" "$destination"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        else
+            echo -e "${RED}Failed${NC}"
+        fi
+    fi
+    
+    if [[ -f "$host_path" ]]; then
+        echo -n "  Copying $filename from host system... "
+        if cp "$host_path" "$destination"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        else
+            echo -e "${RED}Failed${NC}"
+        fi
+    fi
+    
+    echo -e "${RED}Error: $filename not found in extracted files or host system${NC}"
+    return 1
+}
 
 # Function to check if running as root
 check_root() {
@@ -120,12 +155,15 @@ EOF
     echo -e "${GREEN}OK${NC}"
     
     # Copy PXE boot files
-    echo -n "Installing PXE boot files... "
-    if [[ -f /usr/lib/PXELINUX/pxelinux.0 ]]; then
-        cp /usr/lib/PXELINUX/pxelinux.0 "$TFTP_ROOT/"
-    else
+    echo "Installing PXE boot files..."
+    
+    # Copy pxelinux.0
+    if ! copy_boot_file "pxelinux.0" \
+        "$SYSLINUX_FILES_DIR/lib/PXELINUX/pxelinux.0" \
+        "/usr/lib/PXELINUX/pxelinux.0" \
+        "$TFTP_ROOT/pxelinux.0"; then
         echo -e "${RED}FAILED${NC}"
-        echo "Error: pxelinux.0 not found. Ensure syslinux is installed."
+        echo "Error: pxelinux.0 not found. Run 00-extract-boot-files.sh first or ensure syslinux is installed."
         exit 1
     fi
     
@@ -139,11 +177,11 @@ EOF
     )
     
     for module in "${syslinux_modules[@]}"; do
-        if [[ -f "/usr/lib/syslinux/modules/bios/$module" ]]; then
-            cp "/usr/lib/syslinux/modules/bios/$module" "$TFTP_ROOT/"
-        fi
+        copy_boot_file "$module" \
+            "$SYSLINUX_FILES_DIR/lib/syslinux/modules/bios/$module" \
+            "/usr/lib/syslinux/modules/bios/$module" \
+            "$TFTP_ROOT/$module" || true  # Don't fail if optional modules are missing
     done
-    echo -e "${GREEN}OK${NC}"
     
     # Create test file for verification
     echo -n "Creating test file for verification... "

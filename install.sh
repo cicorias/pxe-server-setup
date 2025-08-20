@@ -96,16 +96,21 @@ cd scripts
 print_header "Step 1: Checking Prerequisites"
 ./01-prerequisites.sh
 
-# Step 2: Install packages
-print_header "Step 2: Installing Packages"
+# Step 2: Extract Boot Files
+print_header "Step 2: Extracting Boot Files"
+print_status "Extracting PXE boot files to avoid build machine dependencies..."
+./00-extract-boot-files.sh --download-only
+
+# Step 3: Install packages
+print_header "Step 3: Installing Packages"
 ./02-packages.sh
 
-# Step 3: Configure TFTP
-print_header "Step 3: Configuring TFTP Server"
+# Step 4: Configure TFTP
+print_header "Step 4: Configuring TFTP Server"
 ./03-tftp-setup.sh
 
-# Step 4: Configure DHCP
-print_header "Step 4: Configuring DHCP"
+# Step 5: Configure DHCP
+print_header "Step 5: Configuring DHCP"
 if [[ -n "$DHCP_MODE" ]]; then
     ./04-dhcp-setup.sh $DHCP_MODE
 else
@@ -115,21 +120,21 @@ else
     print_warning "Skipping DHCP configuration..."
 fi
 
-# Step 5: Configure NFS
-print_header "Step 5: Configuring NFS Server"
+# Step 6: Configure NFS
+print_header "Step 6: Configuring NFS Server"
 ./05-nfs-setup.sh
 
-# Step 6: Configure HTTP
-print_header "Step 6: Configuring HTTP Server"
+# Step 7: Configure HTTP
+print_header "Step 7: Configuring HTTP Server"
 ./06-http-setup.sh
 
-# Step 7: Configure PXE Menu
-print_header "Step 7: Configuring PXE Menu"
+# Step 8: Configure PXE Menu
+print_header "Step 8: Configuring PXE Menu"
 ./07-pxe-menu.sh
 
-# Step 8: UEFI Support (optional)
+# Step 9: UEFI Support (optional)
 if [[ "$ENABLE_UEFI" == "true" ]]; then
-    print_header "Step 8: Configuring UEFI Support"
+    print_header "Step 9: Configuring UEFI Support"
     ./09-uefi-pxe-setup.sh
 else
     print_status "UEFI support not enabled. You can add it later with:"

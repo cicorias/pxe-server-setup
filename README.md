@@ -14,6 +14,7 @@ This project provides automated, idempotent scripts to set up a fully functional
 - ✅ Idempotent installation scripts
 - ✅ Organized project structure
 - ✅ Automated setup process
+- ✅ CI/CD friendly (extracts boot files without host package dependencies)
 
 ## Prerequisites
 
@@ -30,6 +31,7 @@ pxe-server-setup/
 ├── README.md                 # This file
 ├── .gitignore               # Git ignore configuration
 ├── scripts/                 # Installation and setup scripts
+│   ├── 00-extract-boot-files.sh # Extract boot files from Ubuntu packages/ISO
 │   ├── 01-prerequisites.sh # System prerequisites and validation
 │   ├── 02-packages.sh      # Package installation
 │   ├── 03-tftp-setup.sh    # TFTP server configuration
@@ -42,6 +44,7 @@ pxe-server-setup/
 │   └── config.sh           # Configuration variables
 ├── artifacts/              # Generated files (excluded from git)
 │   ├── iso/               # ISO storage directory
+│   ├── extracted-boot-files/ # Extracted PXE boot files
 │   ├── tftp/              # TFTP root directory
 │   └── http/              # HTTP root directory
 └── docs/                   # Additional documentation
@@ -619,6 +622,33 @@ done
 ```bash
 sudo ./scripts/08-iso-manager.sh list
 ```
+
+## CI/CD and Build Machine Independence
+
+This PXE server setup is designed to work in CI/CD environments without relying on packages installed on the build machine. The setup automatically extracts required boot files from Ubuntu packages, making it suitable for containerized builds and GitHub Actions workflows.
+
+### Key Features
+
+- ✅ **No host package dependencies**: Boot files extracted from Ubuntu packages
+- ✅ **CI/CD ready**: Works in GitHub Actions, Jenkins, Docker containers
+- ✅ **Reproducible builds**: Same boot files every time
+- ✅ **Backward compatible**: Falls back to host packages when available
+
+### Quick CI/CD Usage
+
+```bash
+# Extract boot files from Ubuntu packages
+sudo ./scripts/00-extract-boot-files.sh --download-only
+
+# Run normal PXE setup
+sudo ./install.sh
+```
+
+### Documentation
+
+For detailed information about CI/CD usage, Docker builds, and build machine independence:
+
+📖 **[CI/CD and Build Machine Independence Guide](docs/ci-cd-build-independence.md)**
 
 ## Troubleshooting
 
