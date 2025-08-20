@@ -69,6 +69,7 @@ usage() {
     echo "  status              Show ISO and service status"
     echo "  validate            Validate ISO configuration"
     echo "  cleanup             Clean up orphaned files"
+    echo "  refresh             Refresh PXE menu entries from existing ISOs"
     echo
     echo "Examples:"
     echo "  $0 add /path/to/ubuntu-24.04-server.iso"
@@ -76,6 +77,7 @@ usage() {
     echo "  $0 remove ubuntu-24.04-server"
     echo "  $0 list"
     echo "  $0 status"
+    echo "  $0 refresh"
     echo
     echo "Supported ISO types:"
     echo "  - Ubuntu Server/Desktop (20.04+)"
@@ -431,6 +433,81 @@ setup_iso_access() {
     return 0
 }
 
+# Function to update GRUB menu for UEFI boot
+update_grub_menu() {
+    local iso_name="$1"
+    local iso_info_file="$2"
+    
+    # Source ISO information
+    source "$iso_info_file"
+    
+    local grub_file="$TFTP_ROOT/grub/grub.cfg"
+    local grub_backup="${grub_file}.backup.$(date +%Y%m%d_%H%M%S)"
+    
+    # Backup current GRUB config
+    cp "$grub_file" "$grub_backup"
+    
+    # Create GRUB menu entry
+    local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$iso_name}"
+    local grub_entry="
+# $RELEASE_NAME
+if [ -f /kernels/$iso_name/vmlinuz ]; then
+menuentry '$RELEASE_NAME' --id=$iso_name {
+    echo 'Loading $RELEASE_NAME...'
+    linux /kernels/$iso_name/vmlinuz $boot_params_updated
+    initrd /initrd/$iso_name/initrd
+    boot
+}
+fi"
+    
+    # Remove any existing entry for this ISO
+    sed -i "/^# $RELEASE_NAME$/,/^fi$/d" "$grub_file"
+    
+    # Create a temporary file with the new entry
+    local temp_grub="/tmp/grub_entry.$$"
+    cat > "$temp_grub" << EOF
+
+# $RELEASE_NAME
+if [ -f /kernels/$iso_name/vmlinuz ]; then
+menuentry '$RELEASE_NAME' --id=$iso_name {
+    echo 'Loading $RELEASE_NAME...'
+    linux /kernels/$iso_name/vmlinuz $boot_params_updated
+    initrd /initrd/$iso_name/initrd
+    boot
+}
+fi
+EOF
+    
+    # Insert new entry before the "BIOS PXE Menu (Legacy)" entry
+    if grep -q "menuentry 'BIOS PXE Menu (Legacy)'" "$grub_file"; then
+        # Insert before the legacy menu entry
+        awk '
+        /menuentry .BIOS PXE Menu \(Legacy\)/ {
+            system("cat '"$temp_grub"'")
+        }
+        { print }
+        ' "$grub_file" > "${grub_file}.tmp"
+        mv "${grub_file}.tmp" "$grub_file"
+    else
+        # If no legacy entry found, append before reboot entry
+        awk '
+        /menuentry .Reboot/ {
+            system("cat '"$temp_grub"'")
+        }
+        { print }
+        ' "$grub_file" > "${grub_file}.tmp"
+        mv "${grub_file}.tmp" "$grub_file"
+    fi
+    
+    rm -f "$temp_grub"
+    
+    # Set proper ownership
+    chown tftp:tftp "$grub_file"
+    chmod 644 "$grub_file"
+    
+    return 0
+}
+
 # Function to update PXE menu
 update_pxe_menu() {
     local iso_name="$1"
@@ -472,11 +549,42 @@ LABEL $menu_label
     
     # Insert the new entry before the placeholder comment
     if grep -q "# ISO entries will be automatically added here" "$PXE_MENU_FILE"; then
-        sed "/# ISO entries will be automatically added here/i\\$menu_entry" "$PXE_MENU_FILE" > "$temp_file"
-        mv "$temp_file" "$PXE_MENU_FILE"
+        # Create a temporary file with the menu entry properly formatted
+        cat > "$temp_file" << EOF
+LABEL $menu_label
+    MENU LABEL $menu_title
+    KERNEL $kernel_path
+    APPEND initrd=$initrd_path $boot_params_updated
+    TEXT HELP
+    Install $RELEASE_NAME via network installation.
+    Architecture: $ARCH
+    ISO: $iso_name
+    ENDTEXT
+
+EOF
+        # Insert the entry before the placeholder
+        awk '
+        /# ISO entries will be automatically added here/ {
+            system("cat '"$temp_file"'")
+        }
+        { print }
+        ' "$PXE_MENU_FILE" > "${temp_file}.new"
+        mv "${temp_file}.new" "$PXE_MENU_FILE"
+        rm -f "$temp_file"
     else
         # If no placeholder found, append to end
-        echo "$menu_entry" >> "$PXE_MENU_FILE"
+        cat >> "$PXE_MENU_FILE" << EOF
+
+LABEL $menu_label
+    MENU LABEL $menu_title
+    KERNEL $kernel_path
+    APPEND initrd=$initrd_path $boot_params_updated
+    TEXT HELP
+    Install $RELEASE_NAME via network installation.
+    Architecture: $ARCH
+    ISO: $iso_name
+    ENDTEXT
+EOF
     fi
     
     # Set proper ownership
@@ -484,6 +592,13 @@ LABEL $menu_label
     chmod 644 "$PXE_MENU_FILE"
     
     echo -e "${GREEN}OK${NC}"
+    
+    # Update GRUB configuration for UEFI boot if it exists
+    if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]]; then
+        echo -n "Updating UEFI GRUB menu... "
+        update_grub_menu "$iso_name" "$iso_info_file"
+        echo -e "${GREEN}OK${NC}"
+    fi
     
     # Restart TFTP service to reload menu
     echo -n "Restarting TFTP service... "
@@ -874,6 +989,84 @@ show_status() {
     echo
 }
 
+# Function to refresh PXE menu entries from existing ISOs
+refresh_pxe_menu() {
+    echo "=== Refreshing PXE Menu Entries ==="
+    echo "Date: $(date)"
+    echo
+    
+    # Check if we have any ISOs
+    if [[ ! -d "$ISO_STORAGE_DIR" ]] || [[ -z "$(ls -A "$ISO_STORAGE_DIR" 2>/dev/null)" ]]; then
+        echo -e "${YELLOW}No ISOs found in storage directory${NC}"
+        return 0
+    fi
+    
+    # Backup current menu
+    echo -n "Backing up current PXE menu... "
+    cp "$PXE_MENU_FILE" "$PXE_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
+    echo -e "${GREEN}OK${NC}"
+    
+    # Remove all existing ISO entries from menu
+    echo -n "Removing existing ISO entries... "
+    # Create a temporary file without ISO entries
+    awk '
+    BEGIN { in_iso_section = 0 }
+    /^LABEL .*ubuntu.*|^LABEL .*debian.*|^LABEL .*centos.*|^LABEL .*rocky.*|^LABEL .*alma.*/ {
+        in_iso_section = 1
+        next
+    }
+    /^LABEL / && in_iso_section {
+        in_iso_section = 0
+    }
+    /^ENDTEXT/ && in_iso_section {
+        in_iso_section = 0
+        next
+    }
+    !in_iso_section { print }
+    ' "$PXE_MENU_FILE" > "$PXE_MENU_FILE.tmp"
+    mv "$PXE_MENU_FILE.tmp" "$PXE_MENU_FILE"
+    echo -e "${GREEN}OK${NC}"
+    
+    # Re-add all ISOs
+    echo "Re-adding ISO entries..."
+    local iso_count=0
+    for iso_file in "$ISO_STORAGE_DIR"/*.iso; do
+        [[ -f "$iso_file" ]] || continue
+        
+        local iso_name
+        iso_name=$(basename "$iso_file" .iso)
+        local iso_info_file="$ISO_STORAGE_DIR/${iso_name}.info"
+        
+        if [[ -f "$iso_info_file" ]]; then
+            echo -n "  Adding $iso_name... "
+            if update_pxe_menu "$iso_name" "$iso_info_file"; then
+                echo -e "${GREEN}OK${NC}"
+                ((iso_count++))
+            else
+                echo -e "${RED}Failed${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  Skipping $iso_name (no .info file)${NC}"
+        fi
+    done
+    
+    # Set proper ownership
+    chown tftp:tftp "$PXE_MENU_FILE"
+    chmod 644 "$PXE_MENU_FILE"
+    
+    # Restart TFTP service
+    echo -n "Restarting TFTP service... "
+    if systemctl restart tftpd-hpa; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}Failed${NC}"
+    fi
+    
+    echo
+    echo -e "${GREEN}PXE menu refresh completed!${NC}"
+    echo "Added $iso_count ISO entries to the menu."
+}
+
 # Function to validate configuration
 validate_configuration() {
     echo "=== PXE ISO Configuration Validation ==="
@@ -1158,6 +1351,10 @@ main() {
         "cleanup")
             check_root
             cleanup_orphaned
+            ;;
+        "refresh")
+            check_root
+            refresh_pxe_menu
             ;;
         *)
             usage

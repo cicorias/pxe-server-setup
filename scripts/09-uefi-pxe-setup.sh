@@ -67,6 +67,9 @@ setup_uefi_boot_files() {
 create_grub_config() {
     echo -e "${BLUE}Creating GRUB configuration...${NC}"
     
+    # Set default ISO storage directory if not defined
+    local ISO_STORAGE_DIR="${ISO_STORAGE_DIR:-$SCRIPT_DIR/../artifacts/iso}"
+    
     echo -n "Creating grub.cfg... "
     cat > "$TFTP_ROOT/grub/grub.cfg" << EOF
 # GRUB Configuration for UEFI PXE Boot
@@ -108,6 +111,42 @@ menuentry 'Ubuntu Server 24.04.1' --id=ubuntu-24041 {
     boot
 }
 fi
+
+EOF
+    
+    # Add dynamic ISO entries
+    echo -n "Adding available ISO entries... "
+    local iso_count=0
+    if [[ -d "$TFTP_ROOT/kernels" ]]; then
+        for kernel_dir in "$TFTP_ROOT/kernels"/*; do
+            [[ -d "$kernel_dir" ]] || continue
+            
+            local iso_name
+            iso_name=$(basename "$kernel_dir")
+            local iso_info_file="${ISO_STORAGE_DIR}/${iso_name}.info"
+            
+            if [[ -f "$iso_info_file" && -f "$kernel_dir/vmlinuz" ]]; then
+                # Source the ISO info
+                source "$iso_info_file"
+                local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$iso_name}"
+                
+                cat >> "$TFTP_ROOT/grub/grub.cfg" << ISOEOF
+
+menuentry '$RELEASE_NAME' --id=$iso_name {
+    echo 'Loading $RELEASE_NAME...'
+    linux /kernels/$iso_name/vmlinuz $boot_params_updated
+    initrd /initrd/$iso_name/initrd
+    boot
+}
+ISOEOF
+                ((iso_count++))
+            fi
+        done
+    fi
+    echo -e "${GREEN}$iso_count ISOs added${NC}"
+    
+    # Add the remaining static entries
+    cat >> "$TFTP_ROOT/grub/grub.cfg" << EOF
 
 menuentry 'BIOS PXE Menu (Legacy)' --id=legacy {
     echo 'Switching to legacy BIOS PXE menu...'

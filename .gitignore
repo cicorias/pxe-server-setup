@@ -1,4 +1,5 @@
 artifacts/
 *.log
 *temp.cfg
+config.sh
 

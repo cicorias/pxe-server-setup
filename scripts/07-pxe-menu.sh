@@ -570,10 +570,43 @@ copy_boot_utilities() {
     
     # Copy memtest86+ if available
     echo -n "Copying memory test utilities... "
-    if [[ -f "/boot/memtest86+.bin" ]]; then
-        cp "/boot/memtest86+.bin" "$TFTP_ROOT/memtest86+"
-    elif [[ -f "/usr/lib/memtest86+/memtest86+.bin" ]]; then
-        cp "/usr/lib/memtest86+/memtest86+.bin" "$TFTP_ROOT/memtest86+"
+    memtest_found=false
+    
+    # Detect system architecture and copy appropriate memtest86+ binary
+    arch=$(uname -m)
+    if [[ "$arch" == "x86_64" ]]; then
+        # For 64-bit systems, prefer x64 version
+        if [[ -f "/boot/memtest86+x64.bin" ]]; then
+            cp "/boot/memtest86+x64.bin" "$TFTP_ROOT/memtest86+"
+            memtest_found=true
+        elif [[ -f "/usr/lib/memtest86+/memtest86+x64.bin" ]]; then
+            cp "/usr/lib/memtest86+/memtest86+x64.bin" "$TFTP_ROOT/memtest86+"
+            memtest_found=true
+        fi
+    elif [[ "$arch" == "i686" || "$arch" == "i386" ]]; then
+        # For 32-bit systems, use ia32 version
+        if [[ -f "/boot/memtest86+ia32.bin" ]]; then
+            cp "/boot/memtest86+ia32.bin" "$TFTP_ROOT/memtest86+"
+            memtest_found=true
+        elif [[ -f "/usr/lib/memtest86+/memtest86+ia32.bin" ]]; then
+            cp "/usr/lib/memtest86+/memtest86+ia32.bin" "$TFTP_ROOT/memtest86+"
+            memtest_found=true
+        fi
+    fi
+    
+    # Fallback to legacy naming convention
+    if [[ "$memtest_found" == false ]]; then
+        if [[ -f "/boot/memtest86+.bin" ]]; then
+            cp "/boot/memtest86+.bin" "$TFTP_ROOT/memtest86+"
+            memtest_found=true
+        elif [[ -f "/usr/lib/memtest86+/memtest86+.bin" ]]; then
+            cp "/usr/lib/memtest86+/memtest86+.bin" "$TFTP_ROOT/memtest86+"
+            memtest_found=true
+        fi
+    fi
+    
+    if [[ "$memtest_found" == true ]]; then
+        echo -e "${GREEN}OK${NC}"
     else
         echo -e "${YELLOW}Not found${NC}"
         echo "  Install with: sudo apt install memtest86+"

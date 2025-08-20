@@ -322,11 +322,14 @@ verify_local_dhcp() {
     echo -n "Checking DHCP port (67/UDP)... "
     # Use systemctl to check if DHCP is actually running and serving
     if systemctl is-active isc-dhcp-server >/dev/null 2>&1; then
+        # Wait a moment for service to fully bind to port
+        sleep 2
         # Double-check with port listening
         if ss -ulpn 2>/dev/null | grep -q ":67" || netstat -ulpn 2>/dev/null | grep -q ":67"; then
             echo -e "${GREEN}Listening${NC}"
         else
             echo -e "${YELLOW}Service active but port check unclear${NC}"
+            echo "  (Service is running but port 67 not detected in socket list)"
         fi
     else
         echo -e "${RED}Not listening${NC}"
@@ -347,6 +350,11 @@ verify_local_dhcp() {
     if command -v nmap >/dev/null 2>&1; then
         # Use nmap if available to check for other DHCP servers
         local dhcp_check=$(timeout 10 nmap --script broadcast-dhcp-discover 2>/dev/null | grep -c "DHCP Message Type: Offer" || echo "0")
+        # Remove any newlines and whitespace from the result
+        dhcp_check=$(echo "$dhcp_check" | tr -d '\n\r' | awk '{print $1}')
+        # Ensure we have a valid number
+        [[ "$dhcp_check" =~ ^[0-9]+$ ]] || dhcp_check=0
+        
         if [[ "$dhcp_check" -eq 1 ]]; then
             echo -e "${GREEN}None detected${NC}"
         elif [[ "$dhcp_check" -gt 1 ]]; then
