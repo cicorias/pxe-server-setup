@@ -45,7 +45,7 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 
 ## Example Commands
 - `sudo ./install.sh` — Full automated setup
-- `sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-server.iso` — Add ISO
+- `sudo ./scripts/08-iso-manager.sh add ubuntu-24.04.3-server.iso` — Add ISO
 - `sudo ./scripts/08-iso-manager.sh list` — List bootable ISOs
 - `sudo nano artifacts/tftp/pxelinux.cfg/default` — Edit PXE menu
 

@@ -71,9 +71,9 @@ usage() {
     echo "  cleanup             Clean up orphaned files"
     echo
     echo "Examples:"
-    echo "  $0 add /path/to/ubuntu-24.04-server.iso"
-    echo "  $0 add ubuntu-24.04-server.iso  # if in current directory"
-    echo "  $0 remove ubuntu-24.04-server"
+    echo "  $0 add /path/to/ubuntu-24.04.3-live-server-amd64.iso"
+    echo "  $0 add ubuntu-24.04.3-live-server-amd64.iso  # if in current directory"
+    echo "  $0 remove ubuntu-24.04.3-live-server-amd64"
     echo "  $0 list"
     echo "  $0 status"
     echo

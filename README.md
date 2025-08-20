@@ -1,6 +1,6 @@
 # Ubuntu 24.04 PXE Server Setup
 
-A comprehensive installation and setup script collection for creating a PXE (Preboot Execution Environment) server on Ubuntu 24.04 LTS using native Ubuntu packages.
+A comprehensive installation and setup script collection for creating a PXE (Preboot Execution Environment) server on Ubuntu 24.04 LTS (including 24.04.03) using native Ubuntu packages.
 
 ## Overview
 
@@ -17,7 +17,7 @@ This project provides automated, idempotent scripts to set up a fully functional
 
 ## Prerequisites
 
-- Ubuntu 24.04 LTS (Server or Desktop)
+- Ubuntu 24.04 LTS (including 24.04.03 - Server or Desktop)
 - Root or sudo access
 - Network connectivity
 - Minimum 20GB free disk space for ISO storage
@@ -598,11 +598,11 @@ sudo systemctl reload nginx
 ### Adding Ubuntu 24.04 Server ISO
 
 ```bash
-# Download ISO
-wget https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso
+# Download ISO (latest 24.04.03 recommended)
+wget https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso
 
 # Add to PXE server
-sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-live-server-amd64.iso
+sudo ./scripts/08-iso-manager.sh add ubuntu-24.04.3-live-server-amd64.iso
 ```
 
 ### Adding Multiple ISOs
@@ -709,6 +709,6 @@ For issues, questions, or suggestions:
 
 ---
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Last Updated**: 2024  
-**Tested On**: Ubuntu 24.04 LTS
+**Tested On**: Ubuntu 24.04 LTS (including 24.04.03)
