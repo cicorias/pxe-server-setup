@@ -158,7 +158,12 @@ detect_iso_info() {
             if [[ -f "$mount_point/casper/vmlinuz" ]]; then
                 kernel_path="casper/vmlinuz"
                 initrd_path="casper/initrd"
-                boot_params="boot=casper url=http://$PXE_SERVER_IP/iso/##ISO_NAME##/ ip=dhcp"
+                # Use modern autoinstall for Ubuntu Server 20.04+
+                if [[ "$version" =~ ^(2[0-9]|[3-9][0-9])\. ]]; then
+                    boot_params="ip=dhcp url=http://$PXE_SERVER_IP/iso/##ISO_NAME##/ autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
+                else
+                    boot_params="boot=casper url=http://$PXE_SERVER_IP/iso/##ISO_NAME##/ ip=dhcp"
+                fi
             fi
             
         elif [[ $disk_info =~ Ubuntu.*Desktop ]]; then
