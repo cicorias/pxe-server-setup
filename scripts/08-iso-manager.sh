@@ -495,6 +495,36 @@ LABEL $menu_label
     
     echo "PXE menu updated with new entry: $menu_title"
     
+    # Also update GRUB configuration for UEFI support
+    update_grub_config "$iso_name" "$iso_info_file"
+    
+    return 0
+}
+
+# Function to update GRUB configuration for UEFI PXE
+update_grub_config() {
+    local iso_name="$1"
+    local iso_info_file="$2"
+    
+    # Check if GRUB configuration exists (UEFI support enabled)
+    if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]]; then
+        echo -e "${BLUE}Updating GRUB configuration for UEFI...${NC}"
+        
+        # Use the GRUB configuration generator if available
+        local grub_generator="$SCRIPT_DIR/grub-pxe-config-generator.sh"
+        
+        if [[ -f "$grub_generator" ]]; then
+            echo -n "Regenerating GRUB configuration... "
+            if "$grub_generator" install 2>/dev/null; then
+                echo -e "${GREEN}OK${NC}"
+            else
+                echo -e "${YELLOW}Failed${NC}"
+            fi
+        else
+            echo -e "${YELLOW}GRUB generator not found, skipping GRUB update${NC}"
+        fi
+    fi
+    
     return 0
 }
 
@@ -704,6 +734,35 @@ remove_iso() {
     if [[ "$quiet_mode" != "--quiet" ]]; then
         echo
         echo -e "${GREEN}ISO '$iso_name' removed successfully${NC}"
+    fi
+    
+    # Regenerate GRUB configuration for UEFI support
+    regenerate_grub_config_after_removal "$iso_name"
+    
+    return 0
+}
+
+# Function to regenerate GRUB configuration after ISO removal
+regenerate_grub_config_after_removal() {
+    local removed_iso_name="$1"
+    
+    # Check if GRUB configuration exists (UEFI support enabled)
+    if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]]; then
+        echo -e "${BLUE}Updating GRUB configuration after ISO removal...${NC}"
+        
+        # Use the GRUB configuration generator if available
+        local grub_generator="$SCRIPT_DIR/grub-pxe-config-generator.sh"
+        
+        if [[ -f "$grub_generator" ]]; then
+            echo -n "Regenerating GRUB configuration... "
+            if "$grub_generator" install 2>/dev/null; then
+                echo -e "${GREEN}OK${NC}"
+            else
+                echo -e "${YELLOW}Failed${NC}"
+            fi
+        else
+            echo -e "${YELLOW}GRUB generator not found, skipping GRUB update${NC}"
+        fi
     fi
     
     return 0
