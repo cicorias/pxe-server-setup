@@ -2,6 +2,12 @@
 # PXE Server Configuration
 # Copy this file to config.sh and modify as needed
 
+# IMPORTANT: This configuration uses the WORKING MOUNTED ISO APPROACH
+# - ISO files are mounted (not extracted) to preserve casper compatibility
+# - NFS exports use mounted ISO directories at $NFS_ROOT/iso/[iso-name]
+# - GRUB boot parameters point to mounted ISOs for proper Ubuntu Server boot
+# - This approach maintains original Ubuntu live filesystem structure
+
 # Network Configuration
 PXE_SERVER_IP="10.1.1.1"               # Static IP of PXE server
 NETWORK_INTERFACE="eth0"                # Primary network interface
@@ -16,10 +22,10 @@ DHCP_RANGE_START="10.1.1.100"          # DHCP range start
 DHCP_RANGE_END="10.1.1.200"            # DHCP range end
 DHCP_LEASE_TIME="86400"                # Lease time in seconds (24h)
 
-# Directory Paths
+# Directory Paths - WORKING CONFIGURATION
 TFTP_ROOT="/var/lib/tftpboot"          # TFTP root directory
-NFS_ROOT="/srv/nfs"                    # NFS export root
-HTTP_ROOT="/var/www/html/pxe"          # HTTP document root
+NFS_ROOT="/srv/nfs"                    # NFS export root (mounted ISOs here)
+HTTP_ROOT="/var/www/html/pxe"          # HTTP document root (symlinks only)
 ISO_DIR="$(pwd)/../artifacts/iso"      # ISO storage directory
 ARTIFACTS_DIR="$(pwd)/../artifacts"    # Artifacts base directory
 

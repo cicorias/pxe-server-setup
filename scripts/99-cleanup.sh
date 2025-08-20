@@ -35,7 +35,7 @@ confirm_cleanup() {
     echo -e "${YELLOW}This will remove:${NC}"
     echo "  • All TFTP server files and configuration"
     echo "  • All DHCP server configuration"
-    echo "  • All NFS exports and mounts"
+    echo "  • All NFS exports and mounts (including iso-direct)"
     echo "  • All HTTP/nginx PXE configuration"
     echo "  • All GRUB UEFI boot files"
     echo "  • All ISO files and extracted content"
@@ -175,6 +175,7 @@ cleanup_nfs() {
         echo -n "  Cleaning NFS exports... "
         # Remove PXE-related exports
         sed -i '/\/srv\/nfs/d' /etc/exports
+        sed -i '/\/var\/www\/html\/pxe\/iso-direct/d' /etc/exports
         echo -e "${GREEN}OK${NC}"
     fi
     
@@ -245,6 +246,20 @@ cleanup_http() {
             echo -e "${GREEN}OK${NC}"
         fi
     done
+    
+    # Remove any lingering iso-direct mounts
+    echo -n "  Unmounting iso-direct files... "
+    local unmount_count=0
+    while IFS= read -r mount_point; do
+        if umount "$mount_point" 2>/dev/null; then
+            ((unmount_count++))
+        fi
+    done < <(mount | grep "/var/www/html/pxe/iso-direct" | awk '{print $3}')
+    if [[ $unmount_count -gt 0 ]]; then
+        echo -e "${GREEN}$unmount_count unmounted${NC}"
+    else
+        echo -e "${GREEN}none found${NC}"
+    fi
 }
 
 # Function to clean GRUB/UEFI configuration
