@@ -13,6 +13,7 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
   - `06-http-setup.sh`: Sets up HTTP
   - `07-pxe-menu.sh`: Configures PXE boot menu
   - `08-iso-manager.sh`: Manages ISO files
+  - `09-uefi-pxe-setup.sh`: Configures UEFI PXE boot
   - `config.sh`: Central configuration variables
 - **Artifacts Directory**: Stores generated files and boot assets:
   - `iso/`: Uploaded ISO files
@@ -53,9 +54,17 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 - See `README.md` for architecture, workflow, and troubleshooting
 - See `docs/troubleshooting.md` for service-specific issues
 - Scripts in `scripts/` directory are the main automation entry points
+- use [GRUB Guide](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/system_administrators_guide/ch-working_with_the_grub_2_boot_loader)
 
 ## Tool Instructions
 - ensure following instructions in [patching-tool.md](./patching-tool.md)
 
+
+## Directives
+- Never suggest iPXE
+- UEFI Boot is the priority
+- BIOS Boot is deprecated
+- avoid symlinks and use copy instead
+- use native GRUB2 cli tools as needed
 ---
 _Last updated: August 2025_

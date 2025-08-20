@@ -89,18 +89,20 @@ create_http_directories() {
     # Create subdirectories for different purposes
     echo -n "Creating HTTP subdirectories... "
     mkdir -p "$HTTP_ROOT/iso"
+    mkdir -p "$HTTP_ROOT/iso-direct"
     mkdir -p "$HTTP_ROOT/kickstart"
     mkdir -p "$HTTP_ROOT/preseed"
     mkdir -p "$HTTP_ROOT/scripts"
     mkdir -p "$HTTP_ROOT/firmware"
     mkdir -p "$HTTP_ROOT/drivers"
     mkdir -p "$HTTP_ROOT/tools"
+    mkdir -p "$HTTP_ROOT/autoinstall"
     echo -e "${GREEN}OK${NC}"
     
     # Set proper permissions
     echo -n "Setting HTTP directory permissions... "
     chmod 755 "$HTTP_ROOT"
-    chmod -R 755 "$HTTP_ROOT"/{iso,kickstart,preseed,scripts,firmware,drivers,tools}
+    chmod -R 755 "$HTTP_ROOT"/{iso,iso-direct,kickstart,preseed,scripts,firmware,drivers,tools,autoinstall}
     chown -R www-data:www-data "$HTTP_ROOT"
     echo -e "${GREEN}OK${NC}"
 }
@@ -164,6 +166,31 @@ server {
         # Cache headers for ISO files
         expires 1d;
         add_header Cache-Control "public, immutable";
+    }
+    
+    # ISO direct access - extracted ISO contents with symlinks
+    location /iso-direct/ {
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+        
+        # Large file optimization
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        
+        # Allow following symlinks (critical for filesystem.squashfs)
+        disable_symlinks off;
+        
+        # Cache headers for ISO contents
+        expires 1h;
+        add_header Cache-Control "public";
+        
+        # Special handling for squashfs files
+        location ~* \.squashfs$ {
+            expires 1d;
+            add_header Cache-Control "public, immutable";
+        }
     }
     
     # Kickstart files

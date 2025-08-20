@@ -53,6 +53,7 @@ fi
 ISO_STORAGE_DIR="$PROJECT_ROOT/artifacts/iso"
 NFS_ISO_DIR="$NFS_ROOT/iso"
 HTTP_ISO_DIR="$HTTP_ROOT/iso"
+HTTP_ISO_DIRECT_DIR="$HTTP_ROOT/iso-direct"
 TFTP_KERNELS_DIR="$TFTP_ROOT/kernels"
 TFTP_INITRD_DIR="$TFTP_ROOT/initrd"
 PXE_MENU_FILE="$TFTP_ROOT/pxelinux.cfg/default"
@@ -101,6 +102,7 @@ create_directories() {
         "$ISO_STORAGE_DIR"
         "$NFS_ISO_DIR"
         "$HTTP_ISO_DIR"
+        "$HTTP_ISO_DIRECT_DIR"
         "$TFTP_KERNELS_DIR"
         "$TFTP_INITRD_DIR"
         "$MOUNT_BASE_DIR"
@@ -108,11 +110,14 @@ create_directories() {
     
     for dir in "${dirs[@]}"; do
         mkdir -p "$dir"
+        chmod 755 "$dir"
     done
     
     # Set proper ownership for service directories
     chown -R tftp:tftp "$TFTP_KERNELS_DIR" "$TFTP_INITRD_DIR"
-    chown -R www-data:www-data "$HTTP_ISO_DIR"
+    chown -R www-data:www-data "$HTTP_ISO_DIR" "$HTTP_ISO_DIRECT_DIR"
+    chmod -R 755 "$TFTP_KERNELS_DIR" "$TFTP_INITRD_DIR"
+    chmod -R 755 "$HTTP_ISO_DIR" "$HTTP_ISO_DIRECT_DIR"
 }
 
 # Function to detect ISO type and extract distribution info
@@ -158,11 +163,12 @@ detect_iso_info() {
             if [[ -f "$mount_point/casper/vmlinuz" ]]; then
                 kernel_path="casper/vmlinuz"
                 initrd_path="casper/initrd"
-                # Use modern autoinstall for Ubuntu Server 20.04+
+                # Use working NFS-based approach for Ubuntu Server 20.04+
                 if [[ "$version" =~ ^(2[0-9]|[3-9][0-9])\. ]]; then
-                    boot_params="ip=dhcp url=http://$PXE_SERVER_IP/iso/##ISO_NAME##/ autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
+                    # Modern Ubuntu Server (20.04+) with working mounted ISO approach
+                    boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$NFS_ROOT/iso/##ISO_NAME## ip=dhcp"
                 else
-                    boot_params="boot=casper url=http://$PXE_SERVER_IP/iso/##ISO_NAME##/ ip=dhcp"
+                    boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$NFS_ROOT/iso/##ISO_NAME## ip=dhcp"
                 fi
             fi
             
@@ -180,7 +186,7 @@ detect_iso_info() {
             if [[ -f "$mount_point/casper/vmlinuz" ]]; then
                 kernel_path="casper/vmlinuz"
                 initrd_path="casper/initrd"
-                boot_params="boot=casper url=http://$PXE_SERVER_IP/iso/##ISO_NAME##/ ip=dhcp quiet splash"
+                boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$NFS_ROOT/iso/##ISO_NAME## ip=dhcp quiet splash"
             fi
         fi
         
@@ -335,6 +341,7 @@ extract_boot_files() {
     local initrd_dir="$TFTP_INITRD_DIR/$iso_name"
     
     mkdir -p "$kernel_dir" "$initrd_dir"
+    chown tftp:tftp "$kernel_dir" "$initrd_dir"
     
     # Extract kernel
     echo -n "Extracting kernel... "
@@ -404,7 +411,11 @@ setup_iso_access() {
         return 1
     fi
     
-    # Create HTTP symbolic link
+    # Set proper permissions on mounted ISO
+    chmod -R 644 "$iso_mount_dir" 2>/dev/null || true
+    find "$iso_mount_dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
+    
+    # Create HTTP symbolic link (for basic HTTP access)
     echo -n "Creating HTTP access link... "
     local http_link="$HTTP_ISO_DIR/$iso_name"
     if [[ -L "$http_link" ]]; then
@@ -413,15 +424,15 @@ setup_iso_access() {
     ln -s "$iso_mount_dir" "$http_link"
     chown -h www-data:www-data "$http_link"
     echo -e "${GREEN}OK${NC}"
-    
-    # Update NFS exports
+
+    # Update NFS exports for mounted ISO (working approach)
     echo -n "Updating NFS exports... "
-    local export_line="$iso_mount_dir $SUBNET/$NETMASK(ro,sync,no_subtree_check,no_root_squash)"
     
-    # Remove existing export if present
+    # Remove existing exports for this ISO
     sed -i "\|$iso_mount_dir|d" /etc/exports
     
-    # Add new export
+    # Add new export for mounted ISO
+    local export_line="$iso_mount_dir $SUBNET/$NETMASK(ro,sync,no_subtree_check,no_root_squash)"
     echo "$export_line" >> /etc/exports
     
     # Reload NFS exports
@@ -432,7 +443,7 @@ setup_iso_access() {
     fi
     
     echo "ISO access configured:"
-    echo "  NFS: $iso_mount_dir"
+    echo "  NFS (mounted ISO): $iso_mount_dir"
     echo "  HTTP: http://$PXE_SERVER_IP/iso/$iso_name/"
     
     return 0
@@ -449,66 +460,102 @@ update_grub_menu() {
     local grub_file="$TFTP_ROOT/grub/grub.cfg"
     local grub_backup="${grub_file}.backup.$(date +%Y%m%d_%H%M%S)"
     
-    # Backup current GRUB config
-    cp "$grub_file" "$grub_backup"
+    # Create GRUB directory if it doesn't exist
+    mkdir -p "$(dirname "$grub_file")"
     
-    # Create GRUB menu entry
-    local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$iso_name}"
-    local grub_entry="
-# $RELEASE_NAME
-if [ -f /kernels/$iso_name/vmlinuz ]; then
-menuentry '$RELEASE_NAME' --id=$iso_name {
-    echo 'Loading $RELEASE_NAME...'
-    linux /kernels/$iso_name/vmlinuz $boot_params_updated
-    initrd /initrd/$iso_name/initrd
-    boot
-}
-fi"
-    
-    # Remove any existing entry for this ISO
-    sed -i "/^# $RELEASE_NAME$/,/^fi$/d" "$grub_file"
-    
-    # Create a temporary file with the new entry
-    local temp_grub="/tmp/grub_entry.$$"
-    cat > "$temp_grub" << EOF
-
-# $RELEASE_NAME
-if [ -f /kernels/$iso_name/vmlinuz ]; then
-menuentry '$RELEASE_NAME' --id=$iso_name {
-    echo 'Loading $RELEASE_NAME...'
-    linux /kernels/$iso_name/vmlinuz $boot_params_updated
-    initrd /initrd/$iso_name/initrd
-    boot
-}
-fi
-EOF
-    
-    # Insert new entry before the "BIOS PXE Menu (Legacy)" entry
-    if grep -q "menuentry 'BIOS PXE Menu (Legacy)'" "$grub_file"; then
-        # Insert before the legacy menu entry
-        awk '
-        /menuentry .BIOS PXE Menu \(Legacy\)/ {
-            system("cat '"$temp_grub"'")
-        }
-        { print }
-        ' "$grub_file" > "${grub_file}.tmp"
-        mv "${grub_file}.tmp" "$grub_file"
-    else
-        # If no legacy entry found, append before reboot entry
-        awk '
-        /menuentry .Reboot/ {
-            system("cat '"$temp_grub"'")
-        }
-        { print }
-        ' "$grub_file" > "${grub_file}.tmp"
-        mv "${grub_file}.tmp" "$grub_file"
+    # Backup current GRUB config if it exists
+    if [[ -f "$grub_file" ]]; then
+        cp "$grub_file" "$grub_backup"
     fi
     
-    rm -f "$temp_grub"
+    # Prepare boot parameters using the working mounted ISO approach
+    local nfs_path="$NFS_ROOT/iso/$iso_name"
+    local manual_boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
+    local auto_boot_params="$manual_boot_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
     
-    # Set proper ownership
+    # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
+    manual_boot_params="$manual_boot_params ---"
+    auto_boot_params="$auto_boot_params ---"
+    
+    # Create or update GRUB configuration using the working mounted ISO template
+    cat > "$grub_file" << EOF
+# GRUB Config (Working mounted ISO approach for proper casper compatibility)
+set timeout=15
+set default=0
+terminal_output console
+insmod efinet
+insmod pxe
+insmod net
+insmod tftp
+insmod linux
+
+if [ -z "\$net_default_ip" ]; then net_bootp; fi
+set pxe_server=$PXE_SERVER_IP
+set iso_name=$iso_name
+
+menuentry "$RELEASE_NAME (Manual Install)" {
+  net_bootp
+  linux (tftp,\$pxe_server)/kernels/\${iso_name}/vmlinuz $manual_boot_params
+  initrd (tftp,\$pxe_server)/initrd/\${iso_name}/initrd
+}
+
+menuentry "$RELEASE_NAME (Auto Install)" {
+  net_bootp
+  linux (tftp,\$pxe_server)/kernels/\${iso_name}/vmlinuz $auto_boot_params
+  initrd (tftp,\$pxe_server)/initrd/\${iso_name}/initrd
+}
+
+menuentry "Boot from local disk" {
+    set root=(hd0)
+    chainloader /EFI/BOOT/BOOTX64.EFI
+    boot
+}
+
+menuentry "Memory Test (EFI)" {
+    echo "EFI Memory test not available"
+    echo "Press any key to return to menu..."
+    read
+}
+
+menuentry "Reboot" {
+    reboot
+}
+
+menuentry "Shutdown" {
+    halt
+}
+EOF
+    
+    # Set proper ownership and permissions
     chown tftp:tftp "$grub_file"
     chmod 644 "$grub_file"
+    
+    # Rebuild GRUB EFI binary with updated configuration
+    echo -n "Rebuilding GRUB EFI binary... "
+    if grub-mkstandalone --format=x86_64-efi --output="$TFTP_ROOT/grubnetx64.efi" --modules="efinet tftp net linux" /boot/grub/grub.cfg="$grub_file"; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}Failed${NC}"
+        return 1
+    fi
+    
+    # Set proper ownership and permissions
+    chown tftp:tftp "$TFTP_ROOT/grubnetx64.efi"
+    chmod 644 "$TFTP_ROOT/grubnetx64.efi"
+    
+    # Restart services to pick up changes
+    echo -n "Restarting TFTP service... "
+    if systemctl restart tftpd-hpa; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${YELLOW}Warning: Could not restart TFTP service${NC}"
+    fi
+    
+    echo "GRUB menu updated:"
+    echo "  Config: $grub_file"
+    echo "  Binary: $TFTP_ROOT/grubnetx64.efi"
+    echo "  Manual boot: $RELEASE_NAME (Manual Install)"
+    echo "  Auto boot: $RELEASE_NAME (Auto Install)"
     
     return 0
 }
@@ -677,11 +724,31 @@ add_iso() {
     echo -n "Copying ISO to storage directory... "
     if cp "$iso_path" "$ISO_STORAGE_DIR/"; then
         echo -e "${GREEN}OK${NC}"
+        chmod 644 "$ISO_STORAGE_DIR/$iso_filename"
     else
         echo -e "${RED}Failed${NC}"
         echo "Error: Could not copy ISO file"
         exit 1
     fi
+
+    # Ensure direct HTTP access to the raw ISO (for iso-url= usage if needed)
+    # Some environments return 403 when using a symlink that points outside the docroot
+    # so we create a hard link if possible (fallback to copy) inside $HTTP_ISO_DIR.
+    local http_iso_target="$HTTP_ISO_DIR/${iso_filename}"
+    echo -n "Preparing ISO for direct HTTP access... "
+    if [[ -f "$http_iso_target" ]]; then
+        rm -f "$http_iso_target"
+    fi
+    if ln "$iso_path" "$http_iso_target" 2>/dev/null; then
+        echo -e "${GREEN}hard link${NC}"
+    elif cp "$iso_path" "$http_iso_target" 2>/dev/null; then
+        echo -e "${YELLOW}copied${NC}"
+    else
+        echo -e "${RED}Failed${NC}"
+        echo "Warning: Could not place ISO in HTTP root; iso-url boots may fail (403)." >&2
+    fi
+    chown www-data:www-data "$http_iso_target" 2>/dev/null || true
+    chmod 644 "$http_iso_target" 2>/dev/null || true
     
     local stored_iso="$ISO_STORAGE_DIR/$iso_filename"
     local mount_point="$MOUNT_BASE_DIR/$iso_name"
@@ -722,11 +789,13 @@ add_iso() {
     echo "Name: $iso_name"
     echo "Storage: $stored_iso"
     echo "NFS Mount: $NFS_ISO_DIR/$iso_name"
+    echo "NFS Direct: /var/www/html/pxe/iso-direct/$iso_name"
     echo "HTTP URL: http://$PXE_SERVER_IP/iso/$iso_name/"
-    echo "PXE Menu: Updated with new boot option"
+    echo "HTTP Direct: http://$PXE_SERVER_IP/iso-direct/$iso_name/"
+    echo "GRUB Menu: Updated with working NFS boot configuration"
     echo
-    echo "The ISO is now available for network installation."
-    echo "Test with: tftp $PXE_SERVER_IP -c get pxelinux.cfg/default"
+    echo "The ISO is now available for network installation using the proven approach."
+    echo "Boot via UEFI PXE and select '$RELEASE_NAME (Manual Install)' or '(Auto Install)'"
     
     return 0
 }
@@ -734,7 +803,7 @@ add_iso() {
 # Function to remove ISO
 remove_iso() {
     local iso_name="$1"
-    local quiet_mode="$2"
+    local quiet_mode="${2:-}"
     
     if [[ -z "$iso_name" ]]; then
         echo -e "${RED}Error: ISO name required${NC}"
@@ -755,8 +824,10 @@ remove_iso() {
     local iso_info_file="$ISO_STORAGE_DIR/${iso_name}.info"
     local iso_mount_dir="$NFS_ISO_DIR/$iso_name"
     local http_link="$HTTP_ISO_DIR/$iso_name"
+    local http_direct_dir="$HTTP_ISO_DIRECT_DIR/$iso_name"
     local kernel_dir="$TFTP_KERNELS_DIR/$iso_name"
     local initrd_dir="$TFTP_INITRD_DIR/$iso_name"
+    local http_iso_file="$HTTP_ISO_DIR/${iso_name}.iso"
     
     # Check if ISO exists
     if [[ ! -f "$iso_file" && ! -d "$iso_mount_dir" ]]; then
@@ -779,7 +850,7 @@ remove_iso() {
     sed -i "\|$iso_mount_dir|d" /etc/fstab
     echo -e "${GREEN}OK${NC}"
     
-    # Remove from NFS exports
+    # Remove from NFS exports (only mounted ISO now)
     echo -n "Removing from NFS exports... "
     sed -i "\|$iso_mount_dir|d" /etc/exports
     if exportfs -ra 2>/dev/null; then
@@ -791,8 +862,21 @@ remove_iso() {
     # Remove files and directories
     echo -n "Removing files... "
     rm -f "$iso_file" "$iso_info_file"
-    rm -f "$http_link"
+    
+    # Remove HTTP link (should be symlink to mounted ISO)
+    if [[ -L "$http_link" ]]; then
+        rm -f "$http_link"
+    elif [[ -d "$http_link" ]]; then
+        rm -rf "$http_link"
+    fi
+    
+    # Remove mount directory and TFTP files
     rm -rf "$iso_mount_dir" "$kernel_dir" "$initrd_dir"
+    
+    # Remove direct HTTP ISO file if present
+    if [[ -f "$http_iso_file" ]]; then
+        rm -f "$http_iso_file"
+    fi
     echo -e "${GREEN}OK${NC}"
     
     # Remove from PXE menu
