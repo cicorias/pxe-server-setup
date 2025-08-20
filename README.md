@@ -14,6 +14,7 @@ This project provides automated, idempotent scripts to set up a fully functional
 - ✅ Idempotent installation scripts
 - ✅ Organized project structure
 - ✅ Automated setup process
+- ✅ CI/CD friendly (extracts boot files without host package dependencies)
 
 ## Prerequisites
 
@@ -30,6 +31,7 @@ pxe-server-setup/
 ├── README.md                 # This file
 ├── .gitignore               # Git ignore configuration
 ├── scripts/                 # Installation and setup scripts
+│   ├── 00-extract-boot-files.sh # Extract boot files from Ubuntu packages/ISO
 │   ├── 01-prerequisites.sh # System prerequisites and validation
 │   ├── 02-packages.sh      # Package installation
 │   ├── 03-tftp-setup.sh    # TFTP server configuration
@@ -42,6 +44,7 @@ pxe-server-setup/
 │   └── config.sh           # Configuration variables
 ├── artifacts/              # Generated files (excluded from git)
 │   ├── iso/               # ISO storage directory
+│   ├── extracted-boot-files/ # Extracted PXE boot files
 │   ├── tftp/              # TFTP root directory
 │   └── http/              # HTTP root directory
 └── docs/                   # Additional documentation

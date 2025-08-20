@@ -27,6 +27,11 @@ else
     exit 1
 fi
 
+# Default paths for extracted files
+EXTRACTED_FILES_DIR="${ARTIFACTS_DIR}/extracted-boot-files"
+SYSLINUX_FILES_DIR="${EXTRACTED_FILES_DIR}/syslinux"
+MEMTEST_FILES_DIR="${EXTRACTED_FILES_DIR}/memtest"
+
 # Validate required network configuration
 required_vars=("NETWORK_INTERFACE" "PXE_SERVER_IP" "TFTP_ROOT")
 missing_vars=()
@@ -55,6 +60,37 @@ check_root() {
         echo -e "${RED}Error: This script must be run as root or with sudo${NC}"
         exit 1
     fi
+}
+
+# Function to copy file from extracted location or fallback to host system
+copy_boot_file() {
+    local filename="$1"
+    local extracted_path="$2"
+    local host_path="$3"
+    local destination="$4"
+    
+    if [[ -f "$extracted_path" ]]; then
+        echo -n "  Copying $filename from extracted files... "
+        if cp "$extracted_path" "$destination"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        else
+            echo -e "${RED}Failed${NC}"
+        fi
+    fi
+    
+    if [[ -f "$host_path" ]]; then
+        echo -n "  Copying $filename from host system... "
+        if cp "$host_path" "$destination"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        else
+            echo -e "${RED}Failed${NC}"
+        fi
+    fi
+    
+    echo -e "${YELLOW}Warning: $filename not found in extracted files or host system${NC}"
+    return 1
 }
 
 # Function to backup existing PXE configuration
@@ -558,25 +594,28 @@ copy_boot_utilities() {
         "vesamenu.c32"
     )
     
-    echo -n "Copying syslinux utilities... "
+    echo "Copying syslinux utilities..."
     for file in "${syslinux_files[@]}"; do
-        if [[ -f "/usr/lib/syslinux/modules/bios/$file" ]]; then
-            cp "/usr/lib/syslinux/modules/bios/$file" "$TFTP_ROOT/"
-        elif [[ -f "/usr/lib/syslinux/$file" ]]; then
-            cp "/usr/lib/syslinux/$file" "$TFTP_ROOT/"
-        fi
+        copy_boot_file "$file" \
+            "$SYSLINUX_FILES_DIR/lib/syslinux/modules/bios/$file" \
+            "/usr/lib/syslinux/modules/bios/$file" \
+            "$TFTP_ROOT/$file" || \
+        copy_boot_file "$file" \
+            "$SYSLINUX_FILES_DIR/lib/syslinux/$file" \
+            "/usr/lib/syslinux/$file" \
+            "$TFTP_ROOT/$file" || true  # Don't fail if optional files are missing
     done
-    echo -e "${GREEN}OK${NC}"
     
     # Copy memtest86+ if available
-    echo -n "Copying memory test utilities... "
-    if [[ -f "/boot/memtest86+.bin" ]]; then
-        cp "/boot/memtest86+.bin" "$TFTP_ROOT/memtest86+"
-    elif [[ -f "/usr/lib/memtest86+/memtest86+.bin" ]]; then
-        cp "/usr/lib/memtest86+/memtest86+.bin" "$TFTP_ROOT/memtest86+"
-    else
-        echo -e "${YELLOW}Not found${NC}"
-        echo "  Install with: sudo apt install memtest86+"
+    echo "Copying memory test utilities..."
+    if ! copy_boot_file "memtest86+.bin" \
+        "$MEMTEST_FILES_DIR/lib/memtest86+/memtest86+.bin" \
+        "/usr/lib/memtest86+/memtest86+.bin" \
+        "$TFTP_ROOT/memtest86+"; then
+        copy_boot_file "memtest86+.bin" \
+            "$MEMTEST_FILES_DIR/boot/memtest86+.bin" \
+            "/boot/memtest86+.bin" \
+            "$TFTP_ROOT/memtest86+" || echo -e "${YELLOW}  Install with: sudo apt install memtest86+${NC}"
     fi
     
     # Set proper permissions

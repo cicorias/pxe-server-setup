@@ -23,7 +23,42 @@ else
     exit 1
 fi
 
+# Default paths for extracted files
+EXTRACTED_FILES_DIR="${ARTIFACTS_DIR}/extracted-boot-files"
+GRUB_FILES_DIR="${EXTRACTED_FILES_DIR}/grub"
+
 echo "=== Adding UEFI PXE Boot Support ==="
+
+# Function to copy file from extracted location or fallback to host system
+copy_boot_file() {
+    local filename="$1"
+    local extracted_path="$2"
+    local host_path="$3"
+    local destination="$4"
+    
+    if [[ -f "$extracted_path" ]]; then
+        echo -n "  Copying $filename from extracted files... "
+        if cp "$extracted_path" "$destination"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        else
+            echo -e "${RED}Failed${NC}"
+        fi
+    fi
+    
+    if [[ -f "$host_path" ]]; then
+        echo -n "  Copying $filename from host system... "
+        if cp "$host_path" "$destination"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        else
+            echo -e "${RED}Failed${NC}"
+        fi
+    fi
+    
+    echo -e "${RED}Error: $filename not found in extracted files or host system${NC}"
+    return 1
+}
 
 # Function to check if running as root
 check_root() {
@@ -44,17 +79,20 @@ setup_uefi_boot_files() {
     echo -e "${GREEN}OK${NC}"
     
     # Copy GRUB EFI network boot file
-    echo -n "Copying GRUB EFI network boot file... "
-    if [[ -f "/usr/lib/grub/x86_64-efi-signed/grubnetx64.efi.signed" ]]; then
-        cp "/usr/lib/grub/x86_64-efi-signed/grubnetx64.efi.signed" "$TFTP_ROOT/bootx64.efi"
-    elif [[ -f "/usr/lib/grub/x86_64-efi/monolithic/grubnetx64.efi" ]]; then
-        cp "/usr/lib/grub/x86_64-efi/monolithic/grubnetx64.efi" "$TFTP_ROOT/bootx64.efi"
-    else
-        echo -e "${RED}Failed${NC}"
-        echo "Error: GRUB EFI network boot file not found"
-        return 1
+    echo "Copying GRUB EFI network boot file..."
+    if ! copy_boot_file "grubnetx64.efi.signed" \
+        "$GRUB_FILES_DIR/lib/grub/x86_64-efi-signed/grubnetx64.efi.signed" \
+        "/usr/lib/grub/x86_64-efi-signed/grubnetx64.efi.signed" \
+        "$TFTP_ROOT/bootx64.efi"; then
+        if ! copy_boot_file "grubnetx64.efi" \
+            "$GRUB_FILES_DIR/lib/grub/x86_64-efi/monolithic/grubnetx64.efi" \
+            "/usr/lib/grub/x86_64-efi/monolithic/grubnetx64.efi" \
+            "$TFTP_ROOT/bootx64.efi"; then
+            echo -e "${RED}Failed${NC}"
+            echo "Error: GRUB EFI network boot file not found. Run 00-extract-boot-files.sh first or install grub-efi-amd64-signed."
+            return 1
+        fi
     fi
-    echo -e "${GREEN}OK${NC}"
     
     # Set proper ownership
     echo -n "Setting file ownership... "
