@@ -593,6 +593,58 @@ sudo nano /etc/nginx/sites-available/pxe
 sudo systemctl reload nginx
 ```
 
+## Deployment Options
+
+This PXE server setup provides several deployment approaches to balance production requirements with development safety.
+
+### Production Deployment (Recommended)
+
+For production environments, use direct host installation with automatic backups:
+
+```bash
+sudo ./install.sh --local-dhcp --uefi
+```
+
+**Benefits:**
+- Full hardware access and optimal performance
+- Standard service management integration
+- Enterprise-grade reliability
+- Automatic system backup created before installation
+
+### Preview Changes (Dry Run)
+
+To see what changes would be made without modifying your system:
+
+```bash
+sudo ./install.sh --dry-run --local-dhcp
+```
+
+**Use Cases:**
+- Preview system modifications before installation
+- Validate configuration in CI/CD pipelines
+- Training and educational demonstrations
+- Compliance and audit preparations
+
+### Backup and Restore
+
+The installation automatically creates a complete system backup. To restore your system:
+
+```bash
+# List available backups
+ls /tmp/pxe-backup-*
+
+# Restore from a specific backup
+sudo ./scripts/system-restore.sh /tmp/pxe-backup-20240820-143022
+
+# Preview restore changes
+sudo ./scripts/system-restore.sh /tmp/pxe-backup-20240820-143022 --dry-run
+```
+
+### Deployment Analysis
+
+For detailed analysis of deployment approaches including chroot considerations, see:
+- [docs/deployment-analysis.md](docs/deployment-analysis.md)
+
 ## Usage Examples
 
 ### Adding Ubuntu 24.04 Server ISO
