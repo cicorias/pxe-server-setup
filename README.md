@@ -623,6 +623,33 @@ done
 sudo ./scripts/08-iso-manager.sh list
 ```
 
+## CI/CD and Build Machine Independence
+
+This PXE server setup is designed to work in CI/CD environments without relying on packages installed on the build machine. The setup automatically extracts required boot files from Ubuntu packages, making it suitable for containerized builds and GitHub Actions workflows.
+
+### Key Features
+
+- ✅ **No host package dependencies**: Boot files extracted from Ubuntu packages
+- ✅ **CI/CD ready**: Works in GitHub Actions, Jenkins, Docker containers
+- ✅ **Reproducible builds**: Same boot files every time
+- ✅ **Backward compatible**: Falls back to host packages when available
+
+### Quick CI/CD Usage
+
+```bash
+# Extract boot files from Ubuntu packages
+sudo ./scripts/00-extract-boot-files.sh --download-only
+
+# Run normal PXE setup
+sudo ./install.sh
+```
+
+### Documentation
+
+For detailed information about CI/CD usage, Docker builds, and build machine independence:
+
+📖 **[CI/CD and Build Machine Independence Guide](docs/ci-cd-build-independence.md)**
+
 ## Troubleshooting
 
 ### Common Issues

@@ -229,7 +229,7 @@ verify_extracted_files() {
         "$SYSLINUX_FILES_DIR/lib/syslinux/modules/bios/libcom32.c32:COM32 library"
         "$SYSLINUX_FILES_DIR/lib/syslinux/modules/bios/libutil.c32:Utility library"
         "$GRUB_FILES_DIR/lib/grub/x86_64-efi-signed/grubnetx64.efi.signed:GRUB EFI signed"
-        "$MEMTEST_FILES_DIR/lib/memtest86+/memtest86+.bin:Memtest86+"
+        "$MEMTEST_FILES_DIR/memtest86+x64.bin:Memtest86+"
     )
     
     local missing_files=0

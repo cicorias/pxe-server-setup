@@ -608,12 +608,12 @@ copy_boot_utilities() {
     
     # Copy memtest86+ if available
     echo "Copying memory test utilities..."
-    if ! copy_boot_file "memtest86+.bin" \
-        "$MEMTEST_FILES_DIR/lib/memtest86+/memtest86+.bin" \
+    if ! copy_boot_file "memtest86+x64.bin" \
+        "$MEMTEST_FILES_DIR/memtest86+x64.bin" \
         "/usr/lib/memtest86+/memtest86+.bin" \
         "$TFTP_ROOT/memtest86+"; then
         copy_boot_file "memtest86+.bin" \
-            "$MEMTEST_FILES_DIR/boot/memtest86+.bin" \
+            "$MEMTEST_FILES_DIR/lib/memtest86+/memtest86+.bin" \
             "/boot/memtest86+.bin" \
             "$TFTP_ROOT/memtest86+" || echo -e "${YELLOW}  Install with: sudo apt install memtest86+${NC}"
     fi
