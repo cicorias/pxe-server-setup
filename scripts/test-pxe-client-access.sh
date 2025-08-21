@@ -103,7 +103,7 @@ echo "3. Expected Boot Process:"
 echo "   - VM gets IP from DHCP (10.1.1.100-200 range)"
 echo "   - Downloads pxelinux.0 via TFTP"
 echo "   - Displays PXE boot menu"
-echo "   - Select Ubuntu Server 24.04.1 or other options"
+echo "   - Select Ubuntu Server 24.04.03 or other options"
 echo
 echo "4. Troubleshooting:"
 echo "   - Ensure both VMs on same private virtual switch"

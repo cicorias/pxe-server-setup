@@ -75,10 +75,10 @@ check_ubuntu_version() {
     if [[ -f /etc/os-release ]]; then
         source /etc/os-release
         if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "24.04" ]]; then
-            echo -e "${GREEN}OK (Ubuntu $VERSION_ID)${NC}"
+            echo -e "${GREEN}OK (Ubuntu $PRETTY_NAME)${NC}"
         else
             echo -e "${YELLOW}WARNING${NC}"
-            echo "Warning: This script is designed for Ubuntu 24.04. Current: $PRETTY_NAME"
+            echo "Warning: This script is designed for Ubuntu 24.04 LTS (including 24.04.03). Current: $PRETTY_NAME"
             echo "Continue at your own risk."
             read -p "Do you want to continue? (y/N): " -n 1 -r
             echo
