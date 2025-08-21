@@ -449,12 +449,40 @@ setup_iso_access() {
     return 0
 }
 
-# Function to update GRUB menu for UEFI boot
-update_grub_menu() {
+# Function to update GRUB configuration using native tools (PR #11 recommendations)
+update_grub_config() {
     local iso_name="$1"
     local iso_info_file="$2"
     
+    echo -e "${BLUE}Updating GRUB configuration for UEFI...${NC}"
+    
+    # Use the GRUB configuration generator if available
+    local grub_generator="$SCRIPT_DIR/grub-pxe-config-generator.sh"
+    
+    if [[ -f "$grub_generator" ]]; then
+        echo -n "Regenerating GRUB configuration with native tools... "
+        if "$grub_generator" install 2>/dev/null; then
+            echo -e "${GREEN}OK${NC}"
+            echo "GRUB configuration updated using grub-mkconfig and native CLI tools"
+            return 0
+        else
+            echo -e "${YELLOW}Failed, using fallback method${NC}"
+        fi
+    fi
+    
+    # Fallback to legacy update method if new system fails
+    update_grub_menu_legacy "$iso_name" "$iso_info_file"
+}
+
+# Legacy GRUB menu update function (fallback)
+update_grub_menu_legacy() {
+    local iso_name="$1"
+    local iso_info_file="$2"
+    
+    echo -n "Using legacy GRUB update method... "
+    
     # Source ISO information
+    local DISTRO="" VERSION="" ARCH="" RELEASE_NAME="" KERNEL_PATH="" INITRD_PATH="" BOOT_PARAMS=""
     source "$iso_info_file"
     
     local grub_file="$TFTP_ROOT/grub/grub.cfg"
@@ -468,60 +496,121 @@ update_grub_menu() {
         cp "$grub_file" "$grub_backup"
     fi
     
-    # Prepare boot parameters using the working mounted ISO approach
+    # Prepare boot parameters using the working mounted ISO approach (working-configuration.md)
     local nfs_path="$NFS_ROOT/iso/$iso_name"
-    local manual_boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
-    local auto_boot_params="$manual_boot_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
+    local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$iso_name}"
+    boot_params_updated="${boot_params_updated//##PXE_SERVER_IP##/$PXE_SERVER_IP}"
+    boot_params_updated="${boot_params_updated//##NFS_ROOT##/$NFS_ROOT}"
     
-    # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
-    manual_boot_params="$manual_boot_params ---"
-    auto_boot_params="$auto_boot_params ---"
-    
-    # Create or update GRUB configuration using the working mounted ISO template
+    # Create enhanced GRUB configuration following PR #11 patterns
     cat > "$grub_file" << EOF
-# GRUB Config (Working mounted ISO approach for proper casper compatibility)
-set timeout=15
-set default=0
-terminal_output console
+# GRUB Configuration for UEFI PXE Boot (Legacy Fallback)
+# Working mounted ISO approach for proper casper compatibility
+# Enhanced with grub-cli-recommendations.md best practices
+
+# Load grubenv for persistent settings
+load_env
+
+# Set defaults (overrideable by grubenv)
+if [ -z "\$timeout" ]; then
+    set timeout=15
+fi
+if [ -z "\$default" ]; then
+    set default="\${saved_entry}"
+fi
+
+# Load essential modules
 insmod efinet
 insmod pxe
 insmod net
 insmod tftp
 insmod linux
+insmod search
+insmod search_fs_file
+insmod search_fs_uuid
+insmod search_label
 
-if [ -z "\$net_default_ip" ]; then net_bootp; fi
-set pxe_server=$PXE_SERVER_IP
-set iso_name=$iso_name
+# Network initialization
+net_bootp
+if [ -z "\$net_default_ip" ]; then
+    echo "Warning: Network configuration may have failed"
+fi
 
-menuentry "$RELEASE_NAME (Manual Install)" {
-  net_bootp
-  linux (tftp,\$pxe_server)/kernels/\${iso_name}/vmlinuz $manual_boot_params
-  initrd (tftp,\$pxe_server)/initrd/\${iso_name}/initrd
-}
+# Set PXE server (prefer discovered, fallback to configured)
+if [ -n "\$net_default_gateway" ]; then
+    set pxe_server=\$net_default_gateway
+else
+    set pxe_server=$PXE_SERVER_IP
+fi
 
-menuentry "$RELEASE_NAME (Auto Install)" {
-  net_bootp
-  linux (tftp,\$pxe_server)/kernels/\${iso_name}/vmlinuz $auto_boot_params
-  initrd (tftp,\$pxe_server)/initrd/\${iso_name}/initrd
-}
+set root=(tftp,\$pxe_server)
 
-menuentry "Boot from local disk" {
-    set root=(hd0)
-    chainloader /EFI/BOOT/BOOTX64.EFI
+# === Available Installations ===
+
+menuentry '$RELEASE_NAME' --class linux --id=$iso_name {
+    echo 'Loading $RELEASE_NAME...'
+    linux /kernels/$iso_name/vmlinuz $boot_params_updated
+    initrd /initrd/$iso_name/initrd
     boot
 }
 
-menuentry "Memory Test (EFI)" {
-    echo "EFI Memory test not available"
+# === Local Boot Options ===
+
+menuentry 'Boot from local disk' --class os --id=local {
+    # Use search for device discovery (grub-cli-recommendations.md)
+    search --no-floppy --set=root --label /
+    if [ -z "\$root" ]; then
+        search --no-floppy --fs-uuid --set=root
+    fi
+    
+    if [ -n "\$root" ]; then
+        if [ -f /EFI/BOOT/BOOTX64.EFI ]; then
+            chainloader /EFI/BOOT/BOOTX64.EFI
+        elif [ -f /EFI/Microsoft/Boot/bootmgfw.efi ]; then
+            chainloader /EFI/Microsoft/Boot/bootmgfw.efi
+        else
+            set root=(hd0)
+            chainloader +1
+        fi
+    else
+        set root=(hd0)
+        chainloader +1
+    fi
+    boot
+}
+
+# === System Tools ===
+
+menuentry 'Memory Test (EFI)' --class memtest --id=memtest {
+    search --no-floppy --set=root --file /tools/memtest86.efi
+    if [ -n "\$root" ] && [ -f /tools/memtest86.efi ]; then
+        chainloader /tools/memtest86.efi
+        boot
+    fi
+    
+    echo "Memory test not available"
+    echo "Install memtest86+ or place memtest86.efi in /tools/"
     echo "Press any key to return to menu..."
     read
 }
 
-menuentry "Reboot" {
+# === System Control ===
+
+menuentry 'Network Information' --class info --id=netinfo {
+    echo "=== Network Configuration ==="
+    echo "PXE Server: \$pxe_server"
+    echo "Client MAC: \$net_default_mac"
+    echo "Client IP: \$net_default_ip"
+    echo ""
+    echo "Press any key to return to menu..."
+    read
+}
+
+menuentry 'Reboot' --class restart --id=reboot {
     reboot
 }
 
-menuentry "Shutdown" {
+menuentry 'Shutdown' --class shutdown --id=shutdown {
     halt
 }
 EOF
@@ -530,32 +619,16 @@ EOF
     chown tftp:tftp "$grub_file"
     chmod 644 "$grub_file"
     
-    # Rebuild GRUB EFI binary with updated configuration
-    echo -n "Rebuilding GRUB EFI binary... "
-    if grub-mkstandalone --format=x86_64-efi --output="$TFTP_ROOT/grubnetx64.efi" --modules="efinet tftp net linux" /boot/grub/grub.cfg="$grub_file"; then
-        echo -e "${GREEN}OK${NC}"
-    else
-        echo -e "${RED}Failed${NC}"
-        return 1
+    # Set up grubenv if grub-utilities is available
+    local grub_utilities="$SCRIPT_DIR/grub-utilities.sh"
+    if [[ -f "$grub_utilities" ]]; then
+        "$grub_utilities" grubenv set "$TFTP_ROOT/grub/grubenv" saved_entry local >/dev/null 2>&1
+        chown tftp:tftp "$TFTP_ROOT/grub/grubenv" 2>/dev/null || true
+        chmod 644 "$TFTP_ROOT/grub/grubenv" 2>/dev/null || true
     fi
     
-    # Set proper ownership and permissions
-    chown tftp:tftp "$TFTP_ROOT/grubnetx64.efi"
-    chmod 644 "$TFTP_ROOT/grubnetx64.efi"
-    
-    # Restart services to pick up changes
-    echo -n "Restarting TFTP service... "
-    if systemctl restart tftpd-hpa; then
-        echo -e "${GREEN}OK${NC}"
-    else
-        echo -e "${YELLOW}Warning: Could not restart TFTP service${NC}"
-    fi
-    
-    echo "GRUB menu updated:"
-    echo "  Config: $grub_file"
-    echo "  Binary: $TFTP_ROOT/grubnetx64.efi"
-    echo "  Manual boot: $RELEASE_NAME (Manual Install)"
-    echo "  Auto boot: $RELEASE_NAME (Auto Install)"
+    echo -e "${GREEN}OK${NC}"
+    echo "Legacy GRUB configuration updated: $grub_file"
     
     return 0
 }
@@ -646,10 +719,8 @@ EOF
     echo -e "${GREEN}OK${NC}"
     
     # Update GRUB configuration for UEFI boot if it exists
-    if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]]; then
-        echo -n "Updating UEFI GRUB menu... "
-        update_grub_menu "$iso_name" "$iso_info_file"
-        echo -e "${GREEN}OK${NC}"
+    if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]] || [[ -d "$TFTP_ROOT/grub" ]]; then
+        update_grub_config "$iso_name" "$iso_info_file"
     fi
     
     # Restart TFTP service to reload menu
@@ -905,12 +976,38 @@ remove_iso() {
         echo -e "${YELLOW}Menu file not found${NC}"
     fi
     
+    # Regenerate GRUB configuration for UEFI support after ISO removal
+    if [[ -d "$TFTP_ROOT/grub" ]]; then
+        regenerate_grub_config_after_removal "$iso_name"
+    fi
+    
     if [[ "$quiet_mode" != "--quiet" ]]; then
         echo
         echo -e "${GREEN}ISO '$iso_name' removed successfully${NC}"
     fi
     
     return 0
+}
+
+# Function to regenerate GRUB configuration after ISO removal
+regenerate_grub_config_after_removal() {
+    local removed_iso_name="$1"
+    
+    echo -e "${BLUE}Updating GRUB configuration after ISO removal...${NC}"
+    
+    # Use the GRUB configuration generator if available
+    local grub_generator="$SCRIPT_DIR/grub-pxe-config-generator.sh"
+    
+    if [[ -f "$grub_generator" ]]; then
+        echo -n "Regenerating GRUB configuration... "
+        if "$grub_generator" install 2>/dev/null; then
+            echo -e "${GREEN}OK${NC}"
+        else
+            echo -e "${YELLOW}Failed${NC}"
+        fi
+    else
+        echo -e "${YELLOW}GRUB generator not found, skipping GRUB update${NC}"
+    fi
 }
 
 # Function to list ISOs
