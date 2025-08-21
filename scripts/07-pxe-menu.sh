@@ -3,7 +3,7 @@
 # PXE boot menu configuration for PXE server setup
 
 set -euo pipefail
-
+set -x
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -659,11 +659,13 @@ verify_pxe_menu() {
     # Check submenu files
     echo -n "Checking submenu configurations... "
     local submenu_count=0
+    shopt -s nullglob  # Enable nullglob to handle empty globs gracefully
     for menu_file in "$TFTP_ROOT/menus"/*.cfg; do
         if [[ -f "$menu_file" ]]; then
-            ((submenu_count++))
+            submenu_count=$((submenu_count + 1))
         fi
     done
+    shopt -u nullglob  # Disable nullglob after use
     
     if [[ $submenu_count -gt 0 ]]; then
         echo -e "${GREEN}$submenu_count submenus${NC}"
