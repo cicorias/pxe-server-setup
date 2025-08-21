@@ -171,6 +171,27 @@ This script:
 - Creates GRUB menu for UEFI boot
 - Enables both BIOS (Generation 1) and UEFI (Generation 2) VM support
 
+## Rerun and Resetup -- Repeated here for ISO Download and ALL the Steps...
+
+```shell
+# download the ISO
+mkdir -p $HOME/Downloads
+cd ~/Downloads
+wget https://mirrors.egr.msu.edu/ubuntu-iso/24.04.3/ubuntu-24.04.3-live-server-amd64.iso
+
+# just run the cleanup twice -- not 100% sure what the issue is but looks like a race condition...
+# this should be the directory you cloned to and just pulled
+cd pxe-server-setup
+sudo ./scripts/99-cleanup.sh
+sudo ./scripts/99-cleanup.sh
+
+# now run the main install.sh
+sudo ./install.sh --uefi --local-dhcp
+
+# now add the ISO to bootloader
+sudo ./scripts/08-iso-manager.sh add $HOME/Downloads/ubuntu-24.04.3-live-server-amd64.iso
+```
+
 ## Configuration Options
 
 ### DHCP Configuration
