@@ -67,6 +67,29 @@ pxe-server-setup/
 - ✅ **NFS Server** (nfs-kernel-server) - Installation media serving
 - ✅ **HTTP Server** (nginx) - Web-based installations and configs
 
+## Preparation Steps
+
+### Install Required Packages
+
+Before setting up the PXE server, install the necessary packages on your Ubuntu 24.04 system:
+
+```bash
+sudo apt update && \
+  sudo apt install -y git wget curl net-tools build-essential nmap ipcalc
+```
+
+### Download Ubuntu ISO
+
+Download the Ubuntu 24.04.3 LTS Server ISO that will be used for network installations:
+
+```bash
+mkdir -p $HOME/Downloads
+cd ~/Downloads
+wget https://mirrors.egr.msu.edu/ubuntu-iso/24.04.3/ubuntu-24.04.3-live-server-amd64.iso
+```
+
+**Note:** This ISO will be added to the PXE server using the `08-iso-manager.sh` script after the initial setup is complete.
+
 ## Quick Start
 
 ### 1. Clone the Repository
