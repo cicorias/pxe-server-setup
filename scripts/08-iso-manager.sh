@@ -560,7 +560,7 @@ menuentry 'Boot from local disk' --class os --id=local {
     # Use search for device discovery (grub-cli-recommendations.md)
     search --no-floppy --set=root --label /
     if [ -z "\$root" ]; then
-        search --no-floppy --fs-uuid --set=root \$(probe -u (hd0,gpt1)) 2>/dev/null
+        search --no-floppy --fs-uuid --set=root
     fi
     
     if [ -n "\$root" ]; then

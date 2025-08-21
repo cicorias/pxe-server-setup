@@ -193,7 +193,7 @@ menuentry 'Boot from local disk' --class os --id=local {
     search --no-floppy --set=root --label / 2>/dev/null
     if [ -z "\$root" ]; then
         # Try searching by filesystem UUID if label search fails
-        search --no-floppy --fs-uuid --set=root \$(probe -u (hd0,gpt1)) 2>/dev/null
+        search --no-floppy --fs-uuid --set=root
     fi
     
     if [ -n "\$root" ]; then
@@ -529,7 +529,7 @@ add_config_footer() {
 menuentry 'Boot from local disk' --class os --id=local {
     search --no-floppy --set=root --label /
     if [ -z "\$root" ]; then
-        search --no-floppy --fs-uuid --set=root \$(probe -u (hd0,gpt1)) 2>/dev/null
+        search --no-floppy --fs-uuid --set=root
     fi
     
     if [ -n "\$root" ]; then
