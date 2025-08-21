@@ -447,7 +447,7 @@ MENU HEADER
     ║  Health Check:   http://$PXE_SERVER_IP/health            ║
     ║                                                           ║
     ║  Generated:      $(date +'%Y-%m-%d %H:%M:%S')                      ║
-    ║  Ubuntu:         24.04 LTS                                ║
+    ║  Ubuntu:         24.04 LTS (incl. 24.04.03)               ║
     ╚═══════════════════════════════════════════════════════════╝
 
 LABEL back
@@ -629,12 +629,12 @@ create_iso_placeholders() {
 
 # ISO entries will be automatically added here by iso-manager.sh
 # Format example:
-# LABEL ubuntu-24.04-server
-#     MENU LABEL Ubuntu 24.04 Server
-#     KERNEL /kernels/ubuntu-24.04/vmlinuz
-#     APPEND initrd=/initrd/ubuntu-24.04/initrd.img ip=dhcp url=http://$PXE_SERVER_IP/iso/ubuntu-24.04/
+# LABEL ubuntu-24.04.3-live-server-amd64
+#     MENU LABEL Ubuntu 24.04.3 Server
+#     KERNEL /kernels/ubuntu-24.04.3-live-server-amd64/vmlinuz
+#     APPEND initrd=/initrd/ubuntu-24.04.3-live-server-amd64/initrd ip=dhcp url=http://$PXE_SERVER_IP/iso/ubuntu-24.04.3-live-server-amd64/
 #     TEXT HELP
-#     Install Ubuntu 24.04 Server via network installation.
+#     Install Ubuntu 24.04.3 Server via network installation.
 #     ENDTEXT
 
 EOF

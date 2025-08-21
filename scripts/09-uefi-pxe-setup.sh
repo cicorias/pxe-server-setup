@@ -102,12 +102,12 @@ menuentry 'Memory Test (EFI)' --id=memtest {
     read
 }
 
-# Ubuntu Server 24.04.1 (if available)
-if [ -f /kernels/ubuntu-24.04.1-live-server-amd64/vmlinuz ]; then
-menuentry 'Ubuntu Server 24.04.1' --id=ubuntu-24041 {
-    echo 'Loading Ubuntu Server 24.04.1...'
-    linux /kernels/ubuntu-24.04.1-live-server-amd64/vmlinuz boot=casper url=http://$PXE_SERVER_IP/iso/ubuntu-24.04.1-live-server-amd64/ ip=dhcp
-    initrd /initrd/ubuntu-24.04.1-live-server-amd64/initrd
+# Ubuntu Server 24.04.3 (if available)
+if [ -f /kernels/ubuntu-24.04.3-live-server-amd64/vmlinuz ]; then
+menuentry 'Ubuntu Server 24.04.3' --id=ubuntu-24043 {
+    echo 'Loading Ubuntu Server 24.04.3...'
+    linux /kernels/ubuntu-24.04.3-live-server-amd64/vmlinuz boot=casper url=http://$PXE_SERVER_IP/iso/ubuntu-24.04.3-live-server-amd64/ ip=dhcp
+    initrd /initrd/ubuntu-24.04.3-live-server-amd64/initrd
     boot
 }
 fi
