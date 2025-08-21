@@ -97,6 +97,10 @@ install_core_packages() {
         "iproute2"          # Modern network utilities
         "iptables"          # Firewall rules
         "systemd"           # Service management
+        "git"               # Version control
+        "build-essential"   # Essential packages for building software
+        "nmap"              # Network exploration tool and security/port scanner
+        "ipcalc"            # IP address calculator
     )
     
     echo "Installing: ${core_packages[*]}"
