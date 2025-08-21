@@ -716,6 +716,30 @@ sudo tar -czf pxe-backup-$(date +%Y%m%d).tar.gz \
     artifacts/tftp/pxelinux.cfg/
 ```
 
+## Pxe Network Configuration
+
+```mermaid
+flowchart LR
+  %% Private network with two machines
+  subgraph PN["Private Network (CIDR 10.1.1.0/24)<br/>"]
+    sp1[" "]:::invis
+    pxeserver["pxeserver"]
+    pxeclients["pxeclients"]
+  end
+
+  %% Internet outside the private network
+  Internet((Internet))
+
+  %% Second NIC from pxeserver to the Internet, labeled
+  pxeserver -->|"DHCP/Internet access"| Internet
+
+  %% Hide the spacer node and its link
+  classDef invis fill:#ffffff,fill-opacity:0,stroke:#ffffff,stroke-width:0,stroke-opacity:0;
+  %% linkStyle 0 stroke:transparent,opacity:0;
+
+```
+
+
 ## Security Considerations
 
 - Limit PXE server access to trusted networks
