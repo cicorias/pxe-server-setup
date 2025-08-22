@@ -10,6 +10,7 @@ This project provides automated, idempotent scripts to set up a fully functional
 
 - ✅ Native Ubuntu 24.04 package support (no iPXE dependency)
 - ✅ Flexible DHCP configuration (local or existing network DHCP)
+- ✅ Optional DNS server for hostname resolution
 - ✅ Support for multiple ISO files
 - ✅ Idempotent installation scripts
 - ✅ Organized project structure
@@ -33,6 +34,7 @@ pxe-server-setup/
 │   ├── 01-prerequisites.sh # System prerequisites and validation
 │   ├── 02-packages.sh      # Package installation
 │   ├── 03-tftp-setup.sh    # TFTP server configuration
+│   ├── 03a-dns-setup.sh    # DNS server configuration (optional)
 │   ├── 04-dhcp-setup.sh    # DHCP server configuration (optional)
 │   ├── 05-nfs-setup.sh     # NFS server configuration
 │   ├── 06-http-setup.sh    # HTTP server configuration
@@ -207,6 +209,39 @@ The setup supports two DHCP modes:
 - Uses existing DHCP server on the network
 - Requires DHCP server configuration for PXE options
 - Run: `sudo ./scripts/04-dhcp-setup.sh --external`
+
+### DNS Configuration (Optional)
+
+The setup includes an optional DNS server for hostname resolution:
+
+#### Enabling DNS Server
+```bash
+# Edit configuration to enable DNS
+nano scripts/config.sh
+
+# Set these DNS variables:
+LOCAL_DNS_ENABLED="true"
+PXE_SERVER_HOSTNAME="pxeserver"
+DOMAIN_NAME="pxe.local"
+
+# Run DNS setup
+sudo ./scripts/03a-dns-setup.sh
+```
+
+#### DNS Features
+- **Local hostname resolution**: Access server via `pxeserver.pxe.local`
+- **Service aliases**: `tftp.pxe.local`, `nfs.pxe.local`, `http.pxe.local`
+- **DHCP integration**: Clients automatically receive DNS server configuration
+- **Boot parameter optimization**: HTTP URLs use hostnames when DNS is available
+- **Fallback support**: Maintains IP address compatibility when DNS is disabled
+
+#### DNS Configuration Variables
+```bash
+LOCAL_DNS_ENABLED="true"           # Enable/disable DNS server
+PXE_SERVER_HOSTNAME="pxeserver"    # Server hostname
+DOMAIN_NAME="pxe.local"            # Local domain name
+DNS_SERVERS="8.8.8.8,8.8.4.4"     # External DNS forwarders
+```
 
 ### Adding ISO Files
 
