@@ -474,12 +474,12 @@ update_grub_menu() {
     # Base parameters for casper live boot
     local base_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
     
-    # Manual install: Offline mode to prevent internet repository access
-    # Use apt-setup/use_mirror=false to disable network mirrors during installation
-    local manual_boot_params="$base_params apt-setup/use_mirror=false netcfg/get_hostname=ubuntu-install"
+    # Manual install: Comprehensive offline mode to prevent internet repository access
+    # Multiple parameters to ensure no network mirror access during installation
+    local manual_boot_params="$base_params apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
     
-    # Auto install: Include autoinstall for unattended setup + offline mode  
-    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false netcfg/get_hostname=ubuntu-install"
+    # Auto install: Include autoinstall for unattended setup + comprehensive offline mode  
+    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
     
     # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
     manual_boot_params="$manual_boot_params ---"
