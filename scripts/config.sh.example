@@ -35,8 +35,8 @@ DHCP_SERVICE="isc-dhcp-server"         # DHCP service name
 NFS_SERVICE="nfs-kernel-server"        # NFS service name
 HTTP_SERVICE="nginx"                   # HTTP service (apache2 or nginx)
 
-# PXE Boot Configuration
-PXELINUX_TIMEOUT="30"                  # Boot timeout in seconds
+# UEFI Boot Configuration (UEFI-only server)
+GRUB_TIMEOUT="30"                      # Boot timeout in seconds
 DEFAULT_BOOT_OPTION="local"            # Default boot option (local or first ISO)
 
 # System Requirements

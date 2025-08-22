@@ -120,6 +120,8 @@ install_tftp_server() {
     local tftp_packages=(
         "tftpd-hpa"         # TFTP server daemon
         "tftp-hpa"          # TFTP client for testing
+        "grub-efi-amd64"    # GRUB EFI bootloader for UEFI PXE
+        "grub-efi-amd64-signed" # Signed GRUB EFI bootloader
     )
     
     echo "Installing: ${tftp_packages[*]}"
@@ -234,44 +236,7 @@ install_dhcp_server() {
     fi
 }
 
-# Function to install Syslinux
-install_syslinux() {
-    echo -e "${BLUE}Installing Syslinux bootloaders...${NC}"
-    
-    local syslinux_packages=(
-        "syslinux"          # Syslinux bootloader
-        "syslinux-common"   # Common Syslinux files
-        "pxelinux"          # PXE bootloader
-        "isolinux"          # ISO bootloader
-    )
-    
-    echo "Installing: ${syslinux_packages[*]}"
-    
-    if DEBIAN_FRONTEND=noninteractive apt install -y "${syslinux_packages[@]}"; then
-        echo -e "${GREEN}Syslinux installed successfully${NC}"
-        
-        # Verify key files are available
-        echo "Verifying Syslinux files..."
-        local key_files=(
-            "/usr/lib/PXELINUX/pxelinux.0"
-            "/usr/lib/syslinux/modules/bios/menu.c32"
-            "/usr/lib/syslinux/modules/bios/vesamenu.c32"
-            "/usr/lib/syslinux/modules/bios/ldlinux.c32"
-        )
-        
-        for file in "${key_files[@]}"; do
-            echo -n "  Checking $file... "
-            if [[ -f "$file" ]]; then
-                echo -e "${GREEN}OK${NC}"
-            else
-                echo -e "${YELLOW}Missing${NC}"
-            fi
-        done
-    else
-        echo -e "${RED}Failed to install Syslinux${NC}"
-        exit 1
-    fi
-}
+# Note: Syslinux/PXELINUX packages removed - UEFI-only PXE server uses GRUB2
 
 # Function to install additional utilities
 install_utilities() {
@@ -345,14 +310,6 @@ verify_installations() {
     echo
     echo "Key files and commands:"
     
-    # Check PXE bootloader file
-    echo -n "  PXE bootloader (/usr/lib/PXELINUX/pxelinux.0)... "
-    if [[ -f "/usr/lib/PXELINUX/pxelinux.0" ]]; then
-        echo -e "${GREEN}Available${NC}"
-    else
-        echo -e "${YELLOW}Missing${NC}"
-    fi
-    
     # Check ISO creation command
     echo -n "  ISO creation (mkisofs)... "
     if command -v "mkisofs" >/dev/null 2>&1; then
@@ -388,7 +345,7 @@ show_next_steps() {
     echo "  - NFS Server (nfs-kernel-server)"
     echo "  - HTTP Server ($HTTP_SERVICE)"
     echo "  - DHCP Server (isc-dhcp-server) - disabled by default"
-    echo "  - Syslinux bootloaders"
+    echo "  - GRUB2 EFI (for UEFI-only PXE boot)"
     echo
     echo "Next steps:"
     echo "1. Configure network settings: sudo ./03-tftp-setup.sh"
@@ -418,7 +375,6 @@ main() {
     install_nfs_server
     install_http_server
     install_dhcp_server
-    install_syslinux
     install_utilities
     cleanup_packages
     verify_installations
