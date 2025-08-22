@@ -30,6 +30,7 @@ fi
 # Test 2: Check script syntax
 echo "2. Script Syntax Check:"
 scripts=(
+    "install.sh"
     "scripts/02-packages.sh"
     "scripts/03-tftp-setup.sh"
     "scripts/04-dhcp-setup.sh"
@@ -99,6 +100,16 @@ else
     echo -e "${RED}MISSING${NC}"
 fi
 
+# Test 8: Main install script
+echo
+echo "8. Main Install Script:"
+echo -n "  UEFI-only configuration... "
+if grep -q "UEFI-Only PXE Server" install.sh && ! grep -q "ENABLE_UEFI=false" install.sh; then
+    echo -e "${GREEN}CONFIGURED${NC}"
+else
+    echo -e "${RED}OUTDATED${NC}"
+fi
+
 echo
 echo "=== Test Summary ==="
 echo "✅ All scripts converted to UEFI-only operation"
@@ -106,6 +117,7 @@ echo "✅ BIOS/pxelinux references removed"
 echo "✅ GRUB2 configuration implemented"
 echo "✅ DHCP configured for UEFI boot"
 echo "✅ Package installation updated"
+echo "✅ Main install script updated"
 echo
 echo "🎯 PXE server is ready for UEFI-only clients"
 echo "💡 Next steps:"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# PXE Server Setup - Main Installation Script
-# This script orchestrates the complete PXE server setup process
+# PXE Server Setup - Main Installation Script (UEFI-Only)
+# This script orchestrates the complete UEFI-only PXE server setup process
 
 set -e
 
@@ -31,6 +31,45 @@ print_header() {
     echo -e "${BLUE}================================${NC}"
 }
 
+# Parse command line arguments first (before root check for --help)
+DHCP_MODE=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --local-dhcp)
+            DHCP_MODE="--local"
+            shift
+            ;;
+        --external-dhcp)
+            DHCP_MODE="--external"
+            shift
+            ;;
+        --help|-h)
+            echo "PXE Server Installation Script (UEFI-Only)"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "OPTIONS:"
+            echo "  --local-dhcp        Configure local DHCP server"
+            echo "  --external-dhcp     Configure for external DHCP server"
+            echo "  --help, -h          Show this help message"
+            echo ""
+            echo "Note: This PXE server supports UEFI boot only"
+            echo ""
+            echo "Examples:"
+            echo "  sudo $0                           # Basic setup with prompts"
+            echo "  sudo $0 --local-dhcp             # Full setup with local DHCP"
+            echo "  sudo $0 --external-dhcp          # Setup for external DHCP"
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            print_status "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
    print_error "This script must be run as root (use sudo)"
@@ -44,50 +83,7 @@ if [[ ! -f "scripts/config.sh" ]]; then
     exit 1
 fi
 
-# Parse command line arguments
-ENABLE_UEFI=false
-DHCP_MODE=""
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --uefi)
-            ENABLE_UEFI=true
-            shift
-            ;;
-        --local-dhcp)
-            DHCP_MODE="--local"
-            shift
-            ;;
-        --external-dhcp)
-            DHCP_MODE="--external"
-            shift
-            ;;
-        --help|-h)
-            echo "PXE Server Installation Script"
-            echo ""
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "OPTIONS:"
-            echo "  --uefi              Enable UEFI support for Generation 2 VMs"
-            echo "  --local-dhcp        Configure local DHCP server"
-            echo "  --external-dhcp     Configure for external DHCP server"
-            echo "  --help, -h          Show this help message"
-            echo ""
-            echo "Examples:"
-            echo "  sudo $0                           # Basic setup with prompts"
-            echo "  sudo $0 --uefi --local-dhcp      # Full setup with UEFI and local DHCP"
-            echo "  sudo $0 --external-dhcp          # Setup for external DHCP"
-            exit 0
-            ;;
-        *)
-            print_error "Unknown option: $1"
-            print_status "Use --help for usage information"
-            exit 1
-            ;;
-    esac
-done
-
-print_header "PXE Server Setup - Starting Installation"
+print_header "UEFI-Only PXE Server Setup - Starting Installation"
 
 # Change to scripts directory
 cd scripts
@@ -123,18 +119,13 @@ print_header "Step 5: Configuring NFS Server"
 print_header "Step 6: Configuring HTTP Server"
 ./06-http-setup.sh
 
-# Step 7: Configure PXE Menu
-print_header "Step 7: Configuring PXE Menu"
+# Step 7: Configure PXE Menu (GRUB2)
+print_header "Step 7: Configuring GRUB2 Boot Menu"
 ./07-pxe-menu.sh
 
-# Step 8: UEFI Support (optional)
-if [[ "$ENABLE_UEFI" == "true" ]]; then
-    print_header "Step 8: Configuring UEFI Support"
-    ./09-uefi-pxe-setup.sh
-else
-    print_status "UEFI support not enabled. You can add it later with:"
-    print_status "  sudo ./scripts/09-uefi-pxe-setup.sh"
-fi
+# Step 8: Configure UEFI PXE Boot
+print_header "Step 8: Configuring UEFI PXE Boot"
+./09-uefi-pxe-setup.sh
 
 # Final validation
 print_header "Final Validation"
@@ -142,26 +133,22 @@ print_header "Final Validation"
 
 print_header "Installation Complete!"
 echo ""
-print_status "PXE Server setup completed successfully!"
+print_status "UEFI-Only PXE Server setup completed successfully!"
 echo ""
 print_status "Next steps:"
 print_status "1. Add the downloaded Ubuntu ISO:"
 print_status "   sudo ./scripts/08-iso-manager.sh add \$HOME/Downloads/ubuntu-24.04.3-live-server-amd64.iso"
 print_status "2. Add additional ISO files to artifacts/iso/ directory"
 print_status "3. Run: sudo ./scripts/08-iso-manager.sh add <iso-file> for other ISOs"
-print_status "4. Configure client machines to boot from network"
+print_status "4. Configure client machines to boot from network (UEFI mode)"
 echo ""
 
-if [[ "$ENABLE_UEFI" == "true" ]]; then
-    print_status "UEFI Support Enabled:"
-    print_status "  - Generation 1 VMs: Use Legacy BIOS boot"
-    print_status "  - Generation 2 VMs: Use UEFI boot"
-else
-    print_warning "UEFI Support Not Enabled:"
-    print_status "  - Only Generation 1 VMs (BIOS) are supported"
-    print_status "  - Run 'sudo ./scripts/09-uefi-pxe-setup.sh' to add Generation 2 VM support"
-fi
+print_status "UEFI Boot Requirements:"
+print_status "  - Client machines must use UEFI firmware"
+print_status "  - Disable Secure Boot in client UEFI settings"
+print_status "  - Set network adapter as first boot device"
+print_status "  - Generation 2 VMs or physical UEFI machines supported"
 
 echo ""
 print_status "For troubleshooting, see: docs/troubleshooting.md"
-print_status "For VM configuration, see VM Support section in README.md"
+print_status "For client configuration, see README.md"
