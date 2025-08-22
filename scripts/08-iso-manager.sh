@@ -470,8 +470,16 @@ update_grub_menu() {
     
     # Prepare boot parameters using the working mounted ISO approach
     local nfs_path="$NFS_ROOT/iso/$iso_name"
-    local manual_boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
-    local auto_boot_params="$manual_boot_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
+    
+    # Base parameters for casper live boot
+    local base_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
+    
+    # Manual install: Offline mode to prevent internet repository access
+    # Use apt-setup/use_mirror=false to disable network mirrors during installation
+    local manual_boot_params="$base_params apt-setup/use_mirror=false netcfg/get_hostname=ubuntu-install"
+    
+    # Auto install: Include autoinstall for unattended setup + offline mode  
+    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false netcfg/get_hostname=ubuntu-install"
     
     # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
     manual_boot_params="$manual_boot_params ---"
