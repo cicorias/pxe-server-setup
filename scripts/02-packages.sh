@@ -236,6 +236,32 @@ install_dhcp_server() {
     fi
 }
 
+# Function to install DNS server (optional)
+install_dns_server() {
+    echo -e "${BLUE}Installing DNS server (optional)...${NC}"
+    
+    local dns_packages=(
+        "bind9"             # BIND9 DNS server
+        "bind9utils"        # BIND9 utilities
+        "bind9-dnsutils"    # DNS utilities (dig, nslookup, etc.)
+    )
+    
+    echo "Installing: ${dns_packages[*]}"
+    echo "Note: DNS server will be configured to provide local name resolution"
+    
+    if DEBIAN_FRONTEND=noninteractive apt install -y "${dns_packages[@]}"; then
+        echo -e "${GREEN}DNS server installed successfully${NC}"
+        
+        # Stop and disable by default - will be configured later if needed
+        echo "Stopping and disabling DNS service (will be enabled after configuration)..."
+        systemctl stop bind9 2>/dev/null || true
+        systemctl disable bind9 2>/dev/null || true
+    else
+        echo -e "${RED}Failed to install DNS server${NC}"
+        exit 1
+    fi
+}
+
 # Note: Syslinux/PXELINUX packages removed - UEFI-only PXE server uses GRUB2
 
 # Function to install additional utilities
@@ -375,6 +401,7 @@ main() {
     install_nfs_server
     install_http_server
     install_dhcp_server
+    install_dns_server
     install_utilities
     cleanup_packages
     verify_installations

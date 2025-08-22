@@ -1,9 +1,21 @@
 #!/bin/bash
 # PXE Server Validation Script
-# Quick test of TFTP, DHCP, and NFS services
+# Quick test of TFTP, DHCP, NFS, and DNS services
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source configuration if it exists
+if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
+    source "$SCRIPT_DIR/config.sh"
+else
+    # Use default values if config not found
+    PXE_SERVER_IP="10.1.1.1"
+fi
 
 echo "=== PXE Server Validation ==="
 echo "Date: $(date)"
+echo "PXE Server IP: $PXE_SERVER_IP"
 echo
 
 # Check TFTP
@@ -67,7 +79,7 @@ if systemctl is-active nginx >/dev/null 2>&1; then
     fi
     
     # Test HTTP response
-    if curl -s -o /dev/null -w "%{http_code}" "http://10.1.1.1/" 2>/dev/null | grep -q "200"; then
+    if curl -s -o /dev/null -w "%{http_code}" "http://$PXE_SERVER_IP/" 2>/dev/null | grep -q "200"; then
         echo "  ✓ HTTP server responding"
     else
         echo "  ✗ HTTP server not responding"
@@ -76,13 +88,34 @@ else
     echo "  ✗ HTTP service not running"
 fi
 
+# Check DNS
+echo
+echo "4a. DNS Service (Optional):"
+if systemctl is-active bind9 >/dev/null 2>&1; then
+    echo "  ✓ DNS service is running"
+    if ss -ulpn | grep -q ":53"; then
+        echo "  ✓ DNS port 53 is listening"
+    else
+        echo "  ✗ DNS port 53 not listening"
+    fi
+    
+    # Test DNS resolution
+    if nslookup localhost 127.0.0.1 >/dev/null 2>&1; then
+        echo "  ✓ DNS resolution working"
+    else
+        echo "  ✗ DNS resolution not working"
+    fi
+else
+    echo "  ℹ DNS service not running (optional service)"
+fi
+
 # Check network configuration
 echo
 echo "5. Network Configuration:"
-if ip addr show | grep -q "10.1.1.1"; then
-    echo "  ✓ PXE server IP (10.1.1.1) configured"
+if ip addr show | grep -q "$PXE_SERVER_IP"; then
+    echo "  ✓ PXE server IP ($PXE_SERVER_IP) configured"
 else
-    echo "  ✗ PXE server IP (10.1.1.1) not found"
+    echo "  ✗ PXE server IP ($PXE_SERVER_IP) not found"
 fi
 
 # Check files
