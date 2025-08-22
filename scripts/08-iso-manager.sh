@@ -59,6 +59,33 @@ TFTP_INITRD_DIR="$TFTP_ROOT/initrd"
 GRUB_MENU_FILE="$TFTP_ROOT/grub/grub.cfg"
 MOUNT_BASE_DIR="/mnt/pxe-iso"
 
+# Helper function to get server reference (IP or hostname)
+get_server_reference() {
+    local service_type="${1:-}"  # nfs, http, tftp
+    
+    # For NFS, we need IP address due to early boot stage limitations
+    # For HTTP, we can use hostname if DNS is enabled and available
+    if [[ "${LOCAL_DNS_ENABLED:-false}" == "true" && -n "${PXE_SERVER_HOSTNAME:-}" && -n "${DOMAIN_NAME:-}" ]]; then
+        case "$service_type" in
+            "nfs")
+                # NFS during early boot may not have DNS resolution, use IP
+                echo "$PXE_SERVER_IP"
+                ;;
+            "http")
+                # HTTP can use hostname if DNS is available
+                echo "${PXE_SERVER_HOSTNAME}.${DOMAIN_NAME}"
+                ;;
+            *)
+                # Default to hostname for other services
+                echo "${PXE_SERVER_HOSTNAME}.${DOMAIN_NAME}"
+                ;;
+        esac
+    else
+        # Fall back to IP address if DNS not enabled
+        echo "$PXE_SERVER_IP"
+    fi
+}
+
 # Usage function
 usage() {
     echo "Usage: $0 <command> [arguments]"
@@ -470,16 +497,18 @@ update_grub_menu() {
     
     # Prepare boot parameters using the working mounted ISO approach
     local nfs_path="$NFS_ROOT/iso/$iso_name"
+    local nfs_server=$(get_server_reference "nfs")
+    local http_server=$(get_server_reference "http")
     
     # Base parameters for casper live boot
-    local base_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
+    local base_params="boot=casper netboot=nfs nfsroot=$nfs_server:$nfs_path ip=dhcp"
     
     # Manual install: Comprehensive offline mode to prevent internet repository access
     # Multiple parameters to ensure no network mirror access during installation
     local manual_boot_params="$base_params apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
     
     # Auto install: Include autoinstall for unattended setup + comprehensive offline mode  
-    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
+    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$http_server/autoinstall/ apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
     
     # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
     manual_boot_params="$manual_boot_params ---"

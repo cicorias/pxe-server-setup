@@ -100,6 +100,21 @@ print_header "Step 2: Installing Packages"
 print_header "Step 3: Configuring TFTP Server"
 ./03-tftp-setup.sh
 
+# Step 3a: Configure DNS (Optional)
+print_header "Step 3a: Configuring DNS Server (Optional)"
+if [[ -f config.sh ]]; then
+    source config.sh
+    if [[ "${LOCAL_DNS_ENABLED:-false}" == "true" ]]; then
+        ./03a-dns-setup.sh
+    else
+        print_status "DNS server disabled in configuration (LOCAL_DNS_ENABLED=false)"
+        print_status "To enable: set LOCAL_DNS_ENABLED=true in scripts/config.sh"
+    fi
+else
+    print_warning "config.sh not found - skipping DNS configuration"
+    print_status "Copy config.sh.example to config.sh to enable DNS"
+fi
+
 # Step 4: Configure DHCP
 print_header "Step 4: Configuring DHCP"
 if [[ -n "$DHCP_MODE" ]]; then

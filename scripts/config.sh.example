@@ -10,12 +10,15 @@
 
 # Network Configuration
 PXE_SERVER_IP="10.1.1.1"               # Static IP of PXE server
+PXE_SERVER_HOSTNAME="pxeserver"         # Hostname for PXE server (used for DNS resolution)
+DOMAIN_NAME="pxe.local"                 # Local domain name for DNS zone
 NETWORK_INTERFACE="eth0"                # Primary network interface
 SUBNET="10.1.1.0"                      # Network subnet
 NETMASK="255.255.255.0"                # Subnet mask
 BROADCAST="10.1.1.255"                 # Broadcast address
 GATEWAY="10.1.1.1"                     # Default gateway
-DNS_SERVERS="8.8.8.8,8.8.4.4"         # DNS servers
+DNS_SERVERS="8.8.8.8,8.8.4.4"         # External DNS servers (fallback)
+LOCAL_DNS_ENABLED="true"                # Enable local DNS server for hostname resolution
 
 # DHCP Configuration (for local DHCP mode)
 DHCP_RANGE_START="10.1.1.100"          # DHCP range start
