@@ -148,13 +148,6 @@ ISOEOF
     # Add the remaining static entries
     cat >> "$TFTP_ROOT/grub/grub.cfg" << EOF
 
-menuentry 'BIOS PXE Menu (Legacy)' --id=legacy {
-    echo 'Switching to legacy BIOS PXE menu...'
-    echo 'Restart with Legacy/BIOS mode for full menu'
-    echo 'Press any key to continue...'
-    read
-}
-
 menuentry 'Reboot' --id=reboot {
     reboot
 }
@@ -181,10 +174,10 @@ update_dhcp_config() {
     # Update DHCP config to support both BIOS and UEFI
     echo -n "Adding UEFI PXE support to DHCP... "
     
-    # Add UEFI detection and boot file selection to DHCP config
+    # Add UEFI detection and boot file selection to DHCP config (UEFI only)
     cat >> /etc/dhcp/dhcpd.conf << 'EOF'
 
-# UEFI PXE Boot Support
+# UEFI PXE Boot Support (UEFI-only)
 # Detect client architecture and provide appropriate boot file
 option arch code 93 = unsigned integer 16;
 
@@ -199,10 +192,8 @@ class "pxeclients" {
   } else if option arch = 00:0b {
     # aarch64 UEFI
     filename "bootaa64.efi";
-  } else {
-    # Legacy BIOS (default)
-    filename "pxelinux.0";
   }
+  # Note: BIOS/Legacy boot removed - UEFI only
 }
 EOF
     
@@ -282,8 +273,7 @@ show_summary() {
     echo
     echo -e "${GREEN}=== UEFI PXE Setup Complete ===${NC}"
     echo "Boot File Support:"
-    echo "  • BIOS (Generation 1): pxelinux.0"
-    echo "  • UEFI (Generation 2): bootx64.efi"
+    echo "  • UEFI only: bootx64.efi, bootaa64.efi"
     echo
     echo "DHCP Configuration:"
     echo "  • Automatic client architecture detection"
@@ -291,13 +281,13 @@ show_summary() {
     echo
     echo "GRUB Menu:"
     echo "  • $TFTP_ROOT/grub/grub.cfg"
-    echo "  • Simplified UEFI menu with Ubuntu option"
+    echo "  • UEFI-only menu with OS installation options"
     echo
     echo "Testing:"
-    echo "  • Generation 1 VM: Will get BIOS PXE menu (pxelinux)"
-    echo "  • Generation 2 VM: Will get UEFI GRUB menu"
+    echo "  • UEFI VMs: Will get UEFI GRUB menu"
+    echo "  • Physical UEFI systems: Will get UEFI GRUB menu"
     echo
-    echo "Your Generation 2 VM should now boot successfully!"
+    echo "Your UEFI systems should now boot successfully!"
 }
 
 # Main execution

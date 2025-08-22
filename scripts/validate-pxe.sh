@@ -88,10 +88,10 @@ fi
 # Check files
 echo
 echo "6. PXE Files:"
-if [[ -f /var/lib/tftpboot/pxelinux.0 ]]; then
-    echo "  ✓ PXE boot loader present"
+if [[ -f /var/lib/tftpboot/bootx64.efi ]]; then
+    echo "  ✓ UEFI boot loader present"
 else
-    echo "  ✗ PXE boot loader missing"
+    echo "  ✗ UEFI boot loader missing"
 fi
 
 if [[ -d /srv/nfs/iso/test-pxe ]]; then

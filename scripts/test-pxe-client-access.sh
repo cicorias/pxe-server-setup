@@ -23,9 +23,9 @@ if netstat -ulpn | grep -q ":69 "; then
     
     # Test TFTP file access
     echo "  Testing TFTP file access..."
-    if timeout 5 tftp 10.1.1.1 -c get pxelinux.0 /tmp/pxelinux.test 2>/dev/null; then
-        echo "  ✅ TFTP file transfer successful"
-        rm -f /tmp/pxelinux.test
+    if timeout 5 tftp 10.1.1.1 -c get bootx64.efi /tmp/bootx64.test 2>/dev/null; then
+        echo "  ✅ TFTP UEFI file transfer successful"
+        rm -f /tmp/bootx64.test
     else
         echo "  ⚠️  TFTP connection issue (may be normal from server)"
     fi
@@ -79,11 +79,11 @@ echo "  DNS: 8.8.8.8, 8.8.4.4"
 
 echo
 echo "6. Available Boot Options:"
-if [[ -f /var/lib/tftpboot/pxelinux.cfg/default ]]; then
-    echo "  PXE Menu Entries:"
-    grep "^LABEL " /var/lib/tftpboot/pxelinux.cfg/default | sed 's/^/    /'
+if [[ -f /var/lib/tftpboot/grub/grub.cfg ]]; then
+    echo "  GRUB Menu Entries:"
+    grep "^menuentry " /var/lib/tftpboot/grub/grub.cfg | sed 's/^/    /'
 else
-    echo "  ❌ PXE menu not found"
+    echo "  ❌ GRUB menu not found"
 fi
 
 echo
@@ -101,13 +101,13 @@ echo "   - Secure Boot: Disabled"
 echo
 echo "3. Expected Boot Process:"
 echo "   - VM gets IP from DHCP (10.1.1.100-200 range)"
-echo "   - Downloads pxelinux.0 via TFTP"
-echo "   - Displays PXE boot menu"
+echo "   - Downloads bootx64.efi via TFTP (UEFI only)"
+echo "   - Displays GRUB boot menu"
 echo "   - Select Ubuntu Server 24.04.1 or other options"
 echo
 echo "4. Troubleshooting:"
 echo "   - Ensure both VMs on same private virtual switch"
-echo "   - Check VM firmware settings (disable secure boot)"
+echo "   - Use UEFI firmware settings (disable secure boot)"
 echo "   - Verify network adapter is first in boot order"
 echo "   - Monitor server logs: sudo journalctl -f"
 echo

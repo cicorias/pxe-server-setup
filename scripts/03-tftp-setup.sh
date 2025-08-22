@@ -114,36 +114,13 @@ EOF
     
     # Create basic directory structure
     echo -n "Creating TFTP directory structure... "
-    mkdir -p "$TFTP_ROOT/pxelinux.cfg"
+    mkdir -p "$TFTP_ROOT/grub"
     mkdir -p "$TFTP_ROOT/images"
     mkdir -p "$TFTP_ROOT/boot"
     echo -e "${GREEN}OK${NC}"
     
-    # Copy PXE boot files
-    echo -n "Installing PXE boot files... "
-    if [[ -f /usr/lib/PXELINUX/pxelinux.0 ]]; then
-        cp /usr/lib/PXELINUX/pxelinux.0 "$TFTP_ROOT/"
-    else
-        echo -e "${RED}FAILED${NC}"
-        echo "Error: pxelinux.0 not found. Ensure syslinux is installed."
-        exit 1
-    fi
-    
-    # Copy syslinux modules
-    local syslinux_modules=(
-        "menu.c32"
-        "vesamenu.c32" 
-        "ldlinux.c32"
-        "libcom32.c32"
-        "libutil.c32"
-    )
-    
-    for module in "${syslinux_modules[@]}"; do
-        if [[ -f "/usr/lib/syslinux/modules/bios/$module" ]]; then
-            cp "/usr/lib/syslinux/modules/bios/$module" "$TFTP_ROOT/"
-        fi
-    done
-    echo -e "${GREEN}OK${NC}"
+    # Note: UEFI PXE boot files will be set up by 09-uefi-pxe-setup.sh
+    # This script only creates the basic TFTP structure
     
     # Create test file for verification
     echo -n "Creating test file for verification... "
@@ -175,8 +152,8 @@ create_artifact_links() {
     fi
     
     # Copy key configuration files to artifacts for easier management
-    if [[ ! -d "$artifacts_tftp/pxelinux.cfg" ]]; then
-        cp -r "$TFTP_ROOT/pxelinux.cfg" "$artifacts_tftp/"
+    if [[ ! -d "$artifacts_tftp/grub" ]]; then
+        mkdir -p "$artifacts_tftp/grub"
     fi
     echo -e "${GREEN}OK${NC}"
 }

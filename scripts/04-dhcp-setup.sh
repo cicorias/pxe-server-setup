@@ -227,7 +227,7 @@ subnet $SUBNET netmask $NETMASK {
     # PXE Boot Configuration
     next-server $PXE_SERVER_IP;
     
-    # Boot file selection based on client architecture
+    # Boot file selection based on client architecture (UEFI only)
     if option architecture-type = 00:07 or option architecture-type = 00:09 {
         # UEFI x64 clients
         filename "bootx64.efi";
@@ -237,10 +237,8 @@ subnet $SUBNET netmask $NETMASK {
     } elsif option architecture-type = 00:06 {
         # EFI IA32 clients
         filename "bootia32.efi";
-    } else {
-        # Legacy BIOS clients
-        filename "pxelinux.0";
     }
+    # Note: BIOS/Legacy boot removed - UEFI only
     
     # Additional PXE options
     option tftp-server-name "$PXE_SERVER_IP";
@@ -253,7 +251,7 @@ subnet $SUBNET netmask $NETMASK {
 #     fixed-address 10.1.1.50;
 # }
 
-# Class definitions for different client types
+# Class definitions for different client types (UEFI only)
 class "pxeclients" {
     match if substring (option vendor-class-identifier, 0, 9) = "PXEClient";
     next-server $PXE_SERVER_IP;
@@ -262,9 +260,8 @@ class "pxeclients" {
         filename "bootx64.efi";
     } elsif option architecture-type = 00:06 {
         filename "bootia32.efi";
-    } else {
-        filename "pxelinux.0";
     }
+    # Note: BIOS/Legacy boot removed - UEFI only
 }
 EOF
     echo -e "${GREEN}OK${NC}"
@@ -381,7 +378,7 @@ configure_external_dhcp() {
     
     echo -e "${YELLOW}Required DHCP Options:${NC}"
     echo "  Option 66 (TFTP Server Name): $PXE_SERVER_IP"
-    echo "  Option 67 (Boot Filename): pxelinux.0 (for BIOS) or bootx64.efi (for UEFI)"
+    echo "  Option 67 (Boot Filename): bootx64.efi (UEFI only)"
     echo "  Next Server: $PXE_SERVER_IP"
     echo
     
@@ -407,12 +404,13 @@ subnet 10.1.1.0 netmask 255.255.255.0 {
     next-server 10.1.1.1;
     option tftp-server-name "10.1.1.1";
     
-    # Architecture-specific boot files
+    # Architecture-specific boot files (UEFI only)
     if option architecture-type = 00:07 or option architecture-type = 00:09 {
         filename "bootx64.efi";  # UEFI x64
-    } else {
-        filename "pxelinux.0";   # Legacy BIOS
+    } elsif option architecture-type = 00:06 {
+        filename "bootia32.efi"; # UEFI IA32
     }
+    # Note: BIOS/Legacy boot removed - UEFI only
 }
 EOF
     echo
@@ -421,7 +419,7 @@ EOF
     echo "  1. Open DHCP Management Console"
     echo "  2. Right-click on Scope Options → Configure Options"
     echo "  3. Enable Option 066 (Boot Server Host Name): $PXE_SERVER_IP"
-    echo "  4. Enable Option 067 (Bootfile Name): pxelinux.0"
+    echo "  4. Enable Option 067 (Bootfile Name): bootx64.efi"
     echo "  5. Restart DHCP service"
     echo
     
@@ -430,7 +428,7 @@ EOF
     echo "  2. Under 'Network booting':"
     echo "     - Enable network booting"
     echo "     - Next Server: $PXE_SERVER_IP"
-    echo "     - Default BIOS file name: pxelinux.0"
+    echo "     - Default boot file name: bootx64.efi (UEFI only)"
     echo "     - UEFI 32 bit file name: bootia32.efi"
     echo "     - UEFI 64 bit file name: bootx64.efi"
     echo "  3. Save configuration"
@@ -441,14 +439,14 @@ EOF
     echo "  2. Edit DHCP configuration:"
     echo "     configure"
     echo "     set service dhcp-server shared-network-name LAN subnet $SUBNET bootfile-server $PXE_SERVER_IP"
-    echo "     set service dhcp-server shared-network-name LAN subnet $SUBNET bootfile-name pxelinux.0"
+    echo "     set service dhcp-server shared-network-name LAN subnet $SUBNET bootfile-name bootx64.efi"
     echo "     commit; save"
     echo
     
     echo -e "${YELLOW}5. RouterOS (MikroTik):${NC}"
     echo "  /ip dhcp-server option"
     echo "  add code=66 name=tftp-server value=\"$PXE_SERVER_IP\""
-    echo "  add code=67 name=bootfile value=\"pxelinux.0\""
+    echo "  add code=67 name=bootfile value=\"bootx64.efi\""
     echo "  /ip dhcp-server network"
     echo "  set [find address=$SUBNET/$NETMASK] dhcp-option=tftp-server,bootfile"
     echo
@@ -502,11 +500,11 @@ else
 fi
 
 # Check boot files
-echo -n "PXE Boot Files: "
-if [[ -f /var/lib/tftpboot/pxelinux.0 ]]; then
+echo -n "UEFI Boot Files: "
+if [[ -f /var/lib/tftpboot/bootx64.efi ]]; then
     echo "Present"
 else
-    echo "Missing - run TFTP setup script"
+    echo "Missing - run UEFI PXE setup script"
 fi
 
 # Test TFTP
@@ -558,7 +556,7 @@ show_summary() {
         echo "External DHCP Server Configuration:"
         echo "  Configure your DHCP server with:"
         echo "  - Option 66 (TFTP Server): $PXE_SERVER_IP"
-        echo "  - Option 67 (Boot File): pxelinux.0"
+        echo "  - Option 67 (Boot File): bootx64.efi (UEFI only)"
         echo "  - Next Server: $PXE_SERVER_IP"
         echo
         echo "Validation script: /usr/local/bin/pxe-dhcp-check"

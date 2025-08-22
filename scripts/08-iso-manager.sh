@@ -56,7 +56,7 @@ HTTP_ISO_DIR="$HTTP_ROOT/iso"
 HTTP_ISO_DIRECT_DIR="$HTTP_ROOT/iso-direct"
 TFTP_KERNELS_DIR="$TFTP_ROOT/kernels"
 TFTP_INITRD_DIR="$TFTP_ROOT/initrd"
-PXE_MENU_FILE="$TFTP_ROOT/pxelinux.cfg/default"
+GRUB_MENU_FILE="$TFTP_ROOT/grub/grub.cfg"
 MOUNT_BASE_DIR="/mnt/pxe-iso"
 
 # Usage function
@@ -470,8 +470,16 @@ update_grub_menu() {
     
     # Prepare boot parameters using the working mounted ISO approach
     local nfs_path="$NFS_ROOT/iso/$iso_name"
-    local manual_boot_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
-    local auto_boot_params="$manual_boot_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
+    
+    # Base parameters for casper live boot
+    local base_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
+    
+    # Manual install: Comprehensive offline mode to prevent internet repository access
+    # Multiple parameters to ensure no network mirror access during installation
+    local manual_boot_params="$base_params apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
+    
+    # Auto install: Include autoinstall for unattended setup + comprehensive offline mode  
+    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
     
     # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
     manual_boot_params="$manual_boot_params ---"
@@ -560,107 +568,15 @@ EOF
     return 0
 }
 
-# Function to update PXE menu
+# Function to update GRUB menu (UEFI-only)
 update_pxe_menu() {
     local iso_name="$1"
     local iso_info_file="$2"
     
-    echo -e "${BLUE}Updating PXE boot menu...${NC}"
+    echo -e "${BLUE}Updating GRUB boot menu (UEFI-only)...${NC}"
     
-    # Source ISO information
-    source "$iso_info_file"
-    
-    # Create menu entry
-    local menu_label="$iso_name"
-    local menu_title="$RELEASE_NAME"
-    local kernel_path="/kernels/$iso_name/vmlinuz"
-    local initrd_path="/initrd/$iso_name/initrd"
-    local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$iso_name}"
-    
-    # Generate PXE menu entry
-    local menu_entry="
-LABEL $menu_label
-    MENU LABEL $menu_title
-    KERNEL $kernel_path
-    APPEND initrd=$initrd_path $boot_params_updated
-    TEXT HELP
-    Install $RELEASE_NAME via network installation.
-    Architecture: $ARCH
-    ISO: $iso_name
-    ENDTEXT
-"
-    
-    # Backup current menu
-    cp "$PXE_MENU_FILE" "$PXE_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
-    
-    # Find the insertion point (before the final ISO placeholder)
-    local temp_file="/tmp/pxe_menu_temp.$$"
-    
-    # Read the current menu and add the new entry
-    echo -n "Adding menu entry for $menu_title... "
-    
-    # Insert the new entry before the placeholder comment
-    if grep -q "# ISO entries will be automatically added here" "$PXE_MENU_FILE"; then
-        # Create a temporary file with the menu entry properly formatted
-        cat > "$temp_file" << EOF
-LABEL $menu_label
-    MENU LABEL $menu_title
-    KERNEL $kernel_path
-    APPEND initrd=$initrd_path $boot_params_updated
-    TEXT HELP
-    Install $RELEASE_NAME via network installation.
-    Architecture: $ARCH
-    ISO: $iso_name
-    ENDTEXT
-
-EOF
-        # Insert the entry before the placeholder
-        awk '
-        /# ISO entries will be automatically added here/ {
-            system("cat '"$temp_file"'")
-        }
-        { print }
-        ' "$PXE_MENU_FILE" > "${temp_file}.new"
-        mv "${temp_file}.new" "$PXE_MENU_FILE"
-        rm -f "$temp_file"
-    else
-        # If no placeholder found, append to end
-        cat >> "$PXE_MENU_FILE" << EOF
-
-LABEL $menu_label
-    MENU LABEL $menu_title
-    KERNEL $kernel_path
-    APPEND initrd=$initrd_path $boot_params_updated
-    TEXT HELP
-    Install $RELEASE_NAME via network installation.
-    Architecture: $ARCH
-    ISO: $iso_name
-    ENDTEXT
-EOF
-    fi
-    
-    # Set proper ownership
-    chown tftp:tftp "$PXE_MENU_FILE"
-    chmod 644 "$PXE_MENU_FILE"
-    
-    echo -e "${GREEN}OK${NC}"
-    
-    # Update GRUB configuration for UEFI boot if it exists
-    if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]]; then
-        echo -n "Updating UEFI GRUB menu... "
-        update_grub_menu "$iso_name" "$iso_info_file"
-        echo -e "${GREEN}OK${NC}"
-    fi
-    
-    # Restart TFTP service to reload menu
-    echo -n "Restarting TFTP service... "
-    if systemctl restart tftpd-hpa; then
-        echo -e "${GREEN}OK${NC}"
-    else
-        echo -e "${YELLOW}Warning: Could not restart TFTP service${NC}"
-    fi
-    
-    echo "PXE menu updated with new entry: $menu_title"
+    # For UEFI-only operation, we only use GRUB
+    update_grub_menu "$iso_name" "$iso_info_file"
     
     return 0
 }
@@ -881,9 +797,9 @@ remove_iso() {
     
     # Remove from PXE menu
     echo -n "Updating PXE menu... "
-    if [[ -f "$PXE_MENU_FILE" ]]; then
+    if [[ -f "$GRUB_MENU_FILE" ]]; then
         # Create backup
-        cp "$PXE_MENU_FILE" "$PXE_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$GRUB_MENU_FILE" "$GRUB_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
         
         # Remove the menu entry (from LABEL to next LABEL or end)
         local temp_file="/tmp/pxe_menu_temp.$$"
@@ -892,11 +808,11 @@ remove_iso() {
             $0 == label { print_block=0 }
             print_block { print }
             $0 != label && $0 !~ "^LABEL " && print_block==1 { print }
-        ' "$PXE_MENU_FILE" > "$temp_file"
+        ' "$GRUB_MENU_FILE" > "$temp_file"
         
-        mv "$temp_file" "$PXE_MENU_FILE"
-        chown tftp:tftp "$PXE_MENU_FILE"
-        chmod 644 "$PXE_MENU_FILE"
+        mv "$temp_file" "$GRUB_MENU_FILE"
+        chown tftp:tftp "$GRUB_MENU_FILE"
+        chmod 644 "$GRUB_MENU_FILE"
         
         # Restart TFTP service
         systemctl restart tftpd-hpa 2>/dev/null
@@ -1092,7 +1008,7 @@ refresh_pxe_menu() {
     
     # Backup current menu
     echo -n "Backing up current PXE menu... "
-    cp "$PXE_MENU_FILE" "$PXE_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
+    cp "$GRUB_MENU_FILE" "$GRUB_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
     echo -e "${GREEN}OK${NC}"
     
     # Remove all existing ISO entries from menu
@@ -1112,8 +1028,8 @@ refresh_pxe_menu() {
         next
     }
     !in_iso_section { print }
-    ' "$PXE_MENU_FILE" > "$PXE_MENU_FILE.tmp"
-    mv "$PXE_MENU_FILE.tmp" "$PXE_MENU_FILE"
+    ' "$GRUB_MENU_FILE" > "$GRUB_MENU_FILE.tmp"
+    mv "$GRUB_MENU_FILE.tmp" "$GRUB_MENU_FILE"
     echo -e "${GREEN}OK${NC}"
     
     # Re-add all ISOs
@@ -1140,8 +1056,8 @@ refresh_pxe_menu() {
     done
     
     # Set proper ownership
-    chown tftp:tftp "$PXE_MENU_FILE"
-    chmod 644 "$PXE_MENU_FILE"
+    chown tftp:tftp "$GRUB_MENU_FILE"
+    chmod 644 "$GRUB_MENU_FILE"
     
     # Restart TFTP service
     echo -n "Restarting TFTP service... "
@@ -1204,12 +1120,12 @@ validate_configuration() {
     
     # Check PXE menu
     echo -e "${BLUE}PXE Menu Checks:${NC}"
-    if [[ -f "$PXE_MENU_FILE" ]]; then
-        echo "  ✅ PXE Menu: $PXE_MENU_FILE"
+    if [[ -f "$GRUB_MENU_FILE" ]]; then
+        echo "  ✅ PXE Menu: $GRUB_MENU_FILE"
         
         # Check if menu has ISO entries
         local iso_entries
-        iso_entries=$(grep -c "^LABEL.*" "$PXE_MENU_FILE" 2>/dev/null || echo "0")
+        iso_entries=$(grep -c "^LABEL.*" "$GRUB_MENU_FILE" 2>/dev/null || echo "0")
         echo "  📋 Menu Entries: $iso_entries"
         
     else
