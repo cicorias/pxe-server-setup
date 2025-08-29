@@ -2,11 +2,13 @@
 # PXE Server Configuration
 # Copy this file to config.sh and modify as needed
 
-# IMPORTANT: This configuration uses the WORKING MOUNTED ISO APPROACH
+# IMPORTANT: This configuration supports both ISO and IMG files
 # - ISO files are mounted (not extracted) to preserve casper compatibility
 # - NFS exports use mounted ISO directories at $NFS_ROOT/iso/[iso-name]
 # - GRUB boot parameters point to mounted ISOs for proper Ubuntu Server boot
-# - This approach maintains original Ubuntu live filesystem structure
+# - IMG files are served via HTTP for alternative boot methods
+# - This approach maintains original Ubuntu live filesystem structure for ISOs
+# - IMG files support custom deployments and network-optimized installations
 
 # Network Configuration
 PXE_SERVER_IP="10.1.1.1"               # Static IP of PXE server
@@ -27,7 +29,12 @@ TFTP_ROOT="/var/lib/tftpboot"          # TFTP root directory
 NFS_ROOT="/srv/nfs"                    # NFS export root (mounted ISOs here)
 HTTP_ROOT="/var/www/html/pxe"          # HTTP document root (symlinks only)
 ISO_DIR="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")/artifacts/iso"      # ISO storage directory
+IMG_DIR="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")/artifacts/img"      # IMG storage directory
 ARTIFACTS_DIR="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")/artifacts"    # Artifacts base directory
+
+# HTTP Paths for IMG Files
+HTTP_IMAGES_DIR="$HTTP_ROOT/images"     # HTTP directory for IMG files
+IMG_STORAGE_DIR="$IMG_DIR"              # Primary IMG storage location
 
 # Service Configuration
 TFTP_SERVICE="tftpd-hpa"               # TFTP service name
@@ -42,3 +49,18 @@ DEFAULT_BOOT_OPTION="local"            # Default boot option (local or first ISO
 # System Requirements
 MIN_DISK_SPACE_GB="20"                 # Minimum free disk space in GB
 REQUIRED_MEMORY_MB="2048"              # Minimum RAM in MB
+
+# IMG File Configuration
+# IMG files provide an alternative to ISO files for certain use cases:
+# - Faster HTTP-based downloading for network installations
+# - Support for custom filesystem images
+# - Direct disk image deployment
+# 
+# IMG Boot Methods:
+# 1. Extracted kernel/initrd + HTTP IMG root (recommended)
+# 2. Pure HTTP IMG boot (experimental, limited OS support)
+#
+# IMG vs ISO Usage Guidelines:
+# - Use ISO files for: Ubuntu Server live installations, traditional OS installs
+# - Use IMG files for: Custom deployments, filesystem images, network-optimized installs
+# - Both can coexist on the same PXE server

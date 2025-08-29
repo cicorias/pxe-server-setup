@@ -114,36 +114,114 @@ fi
 
 EOF
     
-    # Add dynamic ISO entries
-    echo -n "Adding available ISO entries... "
+    # Add dynamic ISO and IMG entries
+    echo -n "Adding available ISO and IMG entries... "
     local iso_count=0
+    local img_count=0
+    
     if [[ -d "$TFTP_ROOT/kernels" ]]; then
         for kernel_dir in "$TFTP_ROOT/kernels"/*; do
             [[ -d "$kernel_dir" ]] || continue
             
-            local iso_name
-            iso_name=$(basename "$kernel_dir")
-            local iso_info_file="${ISO_STORAGE_DIR}/${iso_name}.info"
+            local image_name
+            image_name=$(basename "$kernel_dir")
+            local iso_info_file="${ISO_STORAGE_DIR}/${image_name}.info"
+            local img_info_file="${IMG_STORAGE_DIR:-$SCRIPT_DIR/../artifacts/img}/${image_name}.info"
             
+            # Check for ISO files first
             if [[ -f "$iso_info_file" && -f "$kernel_dir/vmlinuz" ]]; then
                 # Source the ISO info
                 source "$iso_info_file"
-                local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$iso_name}"
+                local boot_params_updated="${BOOT_PARAMS//##ISO_NAME##/$image_name}"
                 
                 cat >> "$TFTP_ROOT/grub/grub.cfg" << ISOEOF
 
-menuentry '$RELEASE_NAME' --id=$iso_name {
+menuentry '$RELEASE_NAME' --id=$image_name {
     echo 'Loading $RELEASE_NAME...'
-    linux /kernels/$iso_name/vmlinuz $boot_params_updated
-    initrd /initrd/$iso_name/initrd
+    linux /kernels/$image_name/vmlinuz $boot_params_updated
+    initrd /initrd/$image_name/initrd
     boot
 }
 ISOEOF
                 ((iso_count++))
+                
+            # Check for IMG files
+            elif [[ -f "$img_info_file" ]]; then
+                # Source the IMG info
+                source "$img_info_file"
+                local boot_params_updated="${BOOT_PARAMS//##IMG_NAME##/$image_name}"
+                
+                # For IMG files, we have two options:
+                # 1. If kernel/initrd were extracted, use TFTP boot with HTTP root
+                # 2. If no kernel/initrd, use pure HTTP boot (requires special handling)
+                
+                if [[ -f "$kernel_dir/vmlinuz" ]]; then
+                    # Option 1: Extracted kernel/initrd with HTTP IMG
+                    cat >> "$TFTP_ROOT/grub/grub.cfg" << IMGEOF
+
+menuentry '$RELEASE_NAME (IMG)' --id=$image_name {
+    echo 'Loading $RELEASE_NAME from IMG...'
+    linux /kernels/$image_name/vmlinuz $boot_params_updated
+    initrd /initrd/$image_name/initrd
+    boot
+}
+IMGEOF
+                else
+                    # Option 2: Pure HTTP boot (experimental)
+                    cat >> "$TFTP_ROOT/grub/grub.cfg" << HTTPEOF
+
+menuentry '$RELEASE_NAME (HTTP IMG)' --id=$image_name {
+    echo 'Loading $RELEASE_NAME via HTTP...'
+    echo 'Downloading IMG file: $image_name.img'
+    # Note: This requires the OS to support HTTP root parameter
+    # Most distributions do not support this natively
+    linux16 (http,$PXE_SERVER_IP)/images/$image_name.img
+}
+HTTPEOF
+                fi
+                ((img_count++))
             fi
         done
     fi
-    echo -e "${GREEN}$iso_count ISOs added${NC}"
+    
+    # Also check for IMG files without extracted kernels (HTTP-only boot)
+    local IMG_STORAGE_DIR="${IMG_STORAGE_DIR:-$SCRIPT_DIR/../artifacts/img}"
+    if [[ -d "$IMG_STORAGE_DIR" ]]; then
+        for img_file in "$IMG_STORAGE_DIR"/*.img; do
+            [[ -f "$img_file" ]] || continue
+            
+            local img_filename
+            img_filename=$(basename "$img_file")
+            local img_name="${img_filename%.img}"
+            local img_info_file="$IMG_STORAGE_DIR/${img_name}.info"
+            
+            # Skip if we already added this IMG via kernel directory
+            if [[ -d "$TFTP_ROOT/kernels/$img_name" ]]; then
+                continue
+            fi
+            
+            if [[ -f "$img_info_file" ]]; then
+                source "$img_info_file"
+                
+                cat >> "$TFTP_ROOT/grub/grub.cfg" << PUREIMGEOF
+
+menuentry '$RELEASE_NAME (Pure IMG)' --id=$img_name {
+    echo 'Loading $RELEASE_NAME via HTTP IMG...'
+    echo 'IMG URL: http://$PXE_SERVER_IP/images/$img_name.img'
+    echo 'This requires OS support for HTTP IMG loading'
+    echo 'Press any key to continue...'
+    read
+    # Experimental: try to load IMG directly
+    # This may not work with all distributions
+    configfile (http,$PXE_SERVER_IP)/images/$img_name.img
+}
+PUREIMGEOF
+                ((img_count++))
+            fi
+        done
+    fi
+    
+    echo -e "${GREEN}$iso_count ISOs, $img_count IMGs added${NC}"
     
     # Add the remaining static entries
     cat >> "$TFTP_ROOT/grub/grub.cfg" << EOF

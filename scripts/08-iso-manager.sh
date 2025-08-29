@@ -51,9 +51,11 @@ fi
 
 # Define paths
 ISO_STORAGE_DIR="$PROJECT_ROOT/artifacts/iso"
+IMG_STORAGE_DIR="$PROJECT_ROOT/artifacts/img"
 NFS_ISO_DIR="$NFS_ROOT/iso"
 HTTP_ISO_DIR="$HTTP_ROOT/iso"
 HTTP_ISO_DIRECT_DIR="$HTTP_ROOT/iso-direct"
+HTTP_IMAGES_DIR="$HTTP_ROOT/images"
 TFTP_KERNELS_DIR="$TFTP_ROOT/kernels"
 TFTP_INITRD_DIR="$TFTP_ROOT/initrd"
 GRUB_MENU_FILE="$TFTP_ROOT/grub/grub.cfg"
@@ -64,28 +66,36 @@ usage() {
     echo "Usage: $0 <command> [arguments]"
     echo
     echo "Commands:"
-    echo "  add <iso-file>      Add ISO file to PXE server"
-    echo "  remove <iso-name>   Remove ISO from PXE server"
-    echo "  list                List all available ISOs"
-    echo "  status              Show ISO and service status"
-    echo "  validate            Validate ISO configuration"
+    echo "  add <file>          Add ISO or IMG file to PXE server"
+    echo "  remove <name>       Remove ISO/IMG from PXE server"
+    echo "  list                List all available ISO/IMG files"
+    echo "  status              Show ISO/IMG and service status"
+    echo "  validate            Validate ISO/IMG configuration"
     echo "  cleanup             Clean up orphaned files"
-    echo "  refresh             Refresh PXE menu entries from existing ISOs"
+    echo "  refresh             Refresh PXE menu entries from existing files"
     echo
     echo "Examples:"
     echo "  $0 add /path/to/ubuntu-24.04-server.iso"
+    echo "  $0 add /path/to/ubuntu-24.04-server.img"
     echo "  $0 add ubuntu-24.04-server.iso  # if in current directory"
+    echo "  $0 add ubuntu-24.04-server.img  # if in current directory"
     echo "  $0 remove ubuntu-24.04-server"
     echo "  $0 list"
     echo "  $0 status"
     echo "  $0 refresh"
     echo
-    echo "Supported ISO types:"
-    echo "  - Ubuntu Server/Desktop (20.04+)"
-    echo "  - Debian (11+)"
-    echo "  - CentOS/RHEL (8+)"
-    echo "  - Rocky Linux/AlmaLinux"
-    echo "  - Custom Linux distributions"
+    echo "Supported file types:"
+    echo "  ISO files:"
+    echo "    - Ubuntu Server/Desktop (20.04+)"
+    echo "    - Debian (11+)"
+    echo "    - CentOS/RHEL (8+)"
+    echo "    - Rocky Linux/AlmaLinux"
+    echo "    - Custom Linux distributions"
+    echo "  IMG files:"
+    echo "    - Filesystem images (ext4, ext3, ext2, xfs, btrfs)"
+    echo "    - Disk images with partitions"
+    echo "    - Live system images"
+    echo "    - Custom Linux distributions"
 }
 
 # Function to check if running as root
@@ -100,9 +110,11 @@ check_root() {
 create_directories() {
     local dirs=(
         "$ISO_STORAGE_DIR"
+        "$IMG_STORAGE_DIR"
         "$NFS_ISO_DIR"
         "$HTTP_ISO_DIR"
         "$HTTP_ISO_DIRECT_DIR"
+        "$HTTP_IMAGES_DIR"
         "$TFTP_KERNELS_DIR"
         "$TFTP_INITRD_DIR"
         "$MOUNT_BASE_DIR"
@@ -115,9 +127,9 @@ create_directories() {
     
     # Set proper ownership for service directories
     chown -R tftp:tftp "$TFTP_KERNELS_DIR" "$TFTP_INITRD_DIR"
-    chown -R www-data:www-data "$HTTP_ISO_DIR" "$HTTP_ISO_DIRECT_DIR"
+    chown -R www-data:www-data "$HTTP_ISO_DIR" "$HTTP_ISO_DIRECT_DIR" "$HTTP_IMAGES_DIR"
     chmod -R 755 "$TFTP_KERNELS_DIR" "$TFTP_INITRD_DIR"
-    chmod -R 755 "$HTTP_ISO_DIR" "$HTTP_ISO_DIRECT_DIR"
+    chmod -R 755 "$HTTP_ISO_DIR" "$HTTP_ISO_DIRECT_DIR" "$HTTP_IMAGES_DIR"
 }
 
 # Function to detect ISO type and extract distribution info
@@ -310,6 +322,199 @@ EOF
     return 0
 }
 
+# Function to detect IMG file type and filesystem
+detect_img_info() {
+    local img_file="$1"
+    local mount_point="$2"
+    local img_info_file="$3"
+    
+    echo -n "Detecting IMG file type and filesystem... "
+    
+    # Initialize variables
+    local distro=""
+    local version=""
+    local arch=""
+    local release_name=""
+    local kernel_path=""
+    local initrd_path=""
+    local boot_params=""
+    local img_type=""
+    local fs_type=""
+    
+    # Detect image type using file command
+    local file_info
+    file_info=$(file "$img_file" 2>/dev/null || echo "unknown")
+    
+    # Check if it's a filesystem image or disk image
+    if [[ $file_info =~ "filesystem" ]]; then
+        img_type="filesystem"
+        # Try to detect filesystem type using blkid
+        fs_type=$(blkid -o value -s TYPE "$img_file" 2>/dev/null || echo "unknown")
+    elif [[ $file_info =~ "DOS/MBR boot sector" ]] || [[ $file_info =~ "partition table" ]]; then
+        img_type="disk"
+        # For disk images, we'll need to mount the first partition
+        fs_type="disk_image"
+    else
+        # Try to mount directly to see if it's a valid filesystem
+        if mount -o loop,ro "$img_file" "$mount_point" 2>/dev/null; then
+            img_type="filesystem"
+            fs_type=$(mount | grep "$mount_point" | awk '{print $5}' | head -1)
+            umount "$mount_point" 2>/dev/null
+        else
+            echo -e "${RED}Failed${NC}"
+            echo "Error: Unable to determine IMG file type or mount filesystem"
+            return 1
+        fi
+    fi
+    
+    # Try to mount and analyze content
+    if ! mount_img_file "$img_file" "$mount_point" "$img_type"; then
+        echo -e "${RED}Failed${NC}"
+        echo "Error: Could not mount IMG file"
+        return 1
+    fi
+    
+    # Try to detect distribution based on mounted content
+    # First, try standard Linux distribution detection methods
+    if [[ -f "$mount_point/etc/os-release" ]]; then
+        # Parse os-release for modern distributions
+        local os_info
+        os_info=$(cat "$mount_point/etc/os-release")
+        
+        if [[ $os_info =~ ID=.*ubuntu ]]; then
+            distro="ubuntu-img"
+            if [[ $os_info =~ VERSION_ID=\"([^\"]+)\" ]]; then
+                version="${BASH_REMATCH[1]}"
+            fi
+            if [[ $os_info =~ VERSION.*Server ]]; then
+                release_name="Ubuntu Server $version (IMG)"
+            else
+                release_name="Ubuntu $version (IMG)"
+            fi
+            # For IMG files, we'll serve them directly over HTTP
+            boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+        elif [[ $os_info =~ ID=.*debian ]]; then
+            distro="debian-img"
+            if [[ $os_info =~ VERSION_ID=\"([^\"]+)\" ]]; then
+                version="${BASH_REMATCH[1]}"
+            fi
+            release_name="Debian $version (IMG)"
+            boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+        elif [[ $os_info =~ ID=.*centos ]] || [[ $os_info =~ ID=.*rhel ]]; then
+            distro="rhel-img"
+            if [[ $os_info =~ VERSION_ID=\"([^\"]+)\" ]]; then
+                version="${BASH_REMATCH[1]}"
+            fi
+            release_name="RHEL/CentOS $version (IMG)"
+            boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+        fi
+        
+        # Try to detect architecture
+        if [[ -f "$mount_point/etc/machine-id" ]] || [[ -d "$mount_point/lib64" ]]; then
+            arch="amd64"
+        elif [[ -d "$mount_point/lib" ]] && [[ ! -d "$mount_point/lib64" ]]; then
+            arch="i386"
+        fi
+        
+    elif [[ -f "$mount_point/boot/vmlinuz" ]] || [[ -f "$mount_point/vmlinuz" ]]; then
+        # Generic Linux image with kernel in standard locations
+        distro="linux-img"
+        version="unknown"
+        arch="amd64"
+        release_name="Linux System (IMG)"
+        boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+        
+        # Try to find kernel and initrd
+        if [[ -f "$mount_point/boot/vmlinuz" ]]; then
+            kernel_path="boot/vmlinuz"
+        elif [[ -f "$mount_point/vmlinuz" ]]; then
+            kernel_path="vmlinuz"
+        fi
+        
+        if [[ -f "$mount_point/boot/initrd.img" ]]; then
+            initrd_path="boot/initrd.img"
+        elif [[ -f "$mount_point/initrd.img" ]]; then
+            initrd_path="initrd.img"
+        elif [[ -f "$mount_point/boot/initramfs" ]]; then
+            initrd_path="boot/initramfs"
+        fi
+    fi
+    
+    umount "$mount_point" 2>/dev/null || true
+    
+    # Save IMG information
+    cat > "$img_info_file" << EOF
+# IMG Information
+DISTRO="$distro"
+VERSION="$version"
+ARCH="$arch"
+RELEASE_NAME="$release_name"
+KERNEL_PATH="$kernel_path"
+INITRD_PATH="$initrd_path"
+BOOT_PARAMS="$boot_params"
+IMG_TYPE="$img_type"
+FS_TYPE="$fs_type"
+EOF
+    
+    echo -e "${GREEN}OK${NC}"
+    echo "IMG Details:"
+    echo "  Distribution: $release_name"
+    echo "  Architecture: $arch"
+    echo "  Image type: $img_type"
+    echo "  Filesystem: $fs_type"
+    echo "  Kernel: $kernel_path"
+    echo "  Initrd: $initrd_path"
+    
+    return 0
+}
+
+# Function to mount IMG files with appropriate options
+mount_img_file() {
+    local img_file="$1"
+    local mount_point="$2"
+    local img_type="$3"
+    
+    if [[ "$img_type" == "disk" ]]; then
+        # For disk images, try to mount the first partition
+        # Use losetup to create a loop device and kpartx to map partitions
+        local loop_device
+        loop_device=$(losetup -f --show "$img_file")
+        if [[ -n "$loop_device" ]]; then
+            # Try to map partitions
+            if command -v kpartx >/dev/null 2>&1; then
+                kpartx -a "$loop_device" 2>/dev/null || true
+                # Try to mount the first partition
+                local partition="${loop_device}p1"
+                if [[ -b "$partition" ]]; then
+                    mount -o ro "$partition" "$mount_point" 2>/dev/null || {
+                        # Cleanup on failure
+                        kpartx -d "$loop_device" 2>/dev/null || true
+                        losetup -d "$loop_device" 2>/dev/null || true
+                        return 1
+                    }
+                else
+                    # No partitions found, try direct mount
+                    mount -o loop,ro "$img_file" "$mount_point" 2>/dev/null || {
+                        losetup -d "$loop_device" 2>/dev/null || true
+                        return 1
+                    }
+                fi
+            else
+                # No kpartx available, try direct mount
+                losetup -d "$loop_device" 2>/dev/null || true
+                mount -o loop,ro "$img_file" "$mount_point" 2>/dev/null || return 1
+            fi
+        else
+            return 1
+        fi
+    else
+        # For filesystem images, mount directly
+        mount -o loop,ro "$img_file" "$mount_point" 2>/dev/null || return 1
+    fi
+    
+    return 0
+}
+
 # Function to extract kernel and initrd from ISO
 extract_boot_files() {
     local iso_file="$1"
@@ -449,6 +654,46 @@ setup_iso_access() {
     return 0
 }
 
+# Function to setup HTTP access for IMG files  
+setup_img_http_access() {
+    local img_file="$1"
+    local img_name="$2"
+    
+    echo -e "${BLUE}Setting up IMG HTTP access...${NC}"
+    
+    # Create images directory in HTTP root if it doesn't exist
+    local http_images_dir="$HTTP_ROOT/images"
+    mkdir -p "$http_images_dir"
+    chown www-data:www-data "$http_images_dir"
+    chmod 755 "$http_images_dir"
+    
+    # Copy IMG file to HTTP images directory
+    echo -n "Copying IMG file to HTTP directory... "
+    local http_img_file="$http_images_dir/$img_name.img"
+    
+    # Remove existing file if present
+    if [[ -f "$http_img_file" ]]; then
+        rm "$http_img_file"
+    fi
+    
+    # Copy the IMG file
+    if cp "$img_file" "$http_img_file"; then
+        chown www-data:www-data "$http_img_file"
+        chmod 644 "$http_img_file"
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}Failed${NC}"
+        echo "Error: Could not copy IMG file to HTTP directory"
+        return 1
+    fi
+    
+    echo "IMG access configured:"
+    echo "  HTTP: http://$PXE_SERVER_IP/images/$img_name.img"
+    echo "  Size: $(du -h "$http_img_file" | cut -f1)"
+    
+    return 0
+}
+
 # Function to update GRUB menu for UEFI boot
 update_grub_menu() {
     local iso_name="$1"
@@ -581,139 +826,216 @@ update_pxe_menu() {
     return 0
 }
 
-# Function to add ISO
-add_iso() {
-    local iso_path="$1"
+# Function to add ISO or IMG file
+add_image() {
+    local file_path="$1"
     
     # Validate input
-    if [[ -z "$iso_path" ]]; then
-        echo -e "${RED}Error: ISO file path required${NC}"
+    if [[ -z "$file_path" ]]; then
+        echo -e "${RED}Error: File path required${NC}"
         usage
         exit 1
     fi
     
     # Resolve full path
-    if [[ ! "$iso_path" =~ ^/ ]]; then
-        iso_path="$(pwd)/$iso_path"
+    if [[ ! "$file_path" =~ ^/ ]]; then
+        file_path="$(pwd)/$file_path"
     fi
     
     # Check if file exists
-    if [[ ! -f "$iso_path" ]]; then
-        echo -e "${RED}Error: ISO file not found: $iso_path${NC}"
+    if [[ ! -f "$file_path" ]]; then
+        echo -e "${RED}Error: File not found: $file_path${NC}"
         exit 1
     fi
     
-    # Check if it's an ISO file
-    if ! file "$iso_path" | grep -q "ISO 9660"; then
-        echo -e "${RED}Error: File does not appear to be an ISO image${NC}"
+    local filename
+    filename=$(basename "$file_path")
+    local file_ext="${filename##*.}"
+    local file_name="${filename%.*}"
+    
+    # Determine file type and validate
+    local is_iso=false
+    local is_img=false
+    
+    if [[ "$file_ext" == "iso" ]]; then
+        # Check if it's an ISO file
+        if file "$file_path" | grep -q "ISO 9660"; then
+            is_iso=true
+        else
+            echo -e "${RED}Error: File does not appear to be an ISO image${NC}"
+            exit 1
+        fi
+    elif [[ "$file_ext" == "img" ]]; then
+        # Check if it's a valid IMG file (filesystem or disk image)
+        local file_info
+        file_info=$(file "$file_path" 2>/dev/null)
+        if [[ $file_info =~ "filesystem" ]] || [[ $file_info =~ "DOS/MBR boot sector" ]] || [[ $file_info =~ "partition table" ]]; then
+            is_img=true
+        else
+            # Try blkid to see if it's a filesystem
+            if blkid "$file_path" >/dev/null 2>&1; then
+                is_img=true
+            else
+                echo -e "${RED}Error: File does not appear to be a valid IMG file${NC}"
+                echo "Supported: filesystem images, disk images with partitions"
+                exit 1
+            fi
+        fi
+    else
+        echo -e "${RED}Error: Unsupported file type. Only .iso and .img files are supported${NC}"
         exit 1
     fi
     
-    local iso_filename
-    iso_filename=$(basename "$iso_path")
-    local iso_name="${iso_filename%.iso}"
-    
-    echo "=== Adding ISO: $iso_filename ==="
+    echo "=== Adding $(if $is_iso; then echo "ISO"; else echo "IMG"; fi): $filename ==="
     echo "Date: $(date)"
-    echo "Source: $iso_path"
-    echo "Name: $iso_name"
+    echo "Source: $file_path"
+    echo "Name: $file_name"
+    echo "Type: $(if $is_iso; then echo "ISO 9660"; else echo "IMG file"; fi)"
     echo
     
-    # Check if ISO already exists
-    if [[ -f "$ISO_STORAGE_DIR/$iso_filename" ]]; then
-        echo -e "${YELLOW}Warning: ISO already exists in storage${NC}"
-        read -p "Overwrite existing ISO? (y/N): " -r
+    # Set storage directory based on file type
+    local storage_dir
+    if $is_iso; then
+        storage_dir="$ISO_STORAGE_DIR"
+    else
+        storage_dir="$IMG_STORAGE_DIR"
+    fi
+    
+    # Check if file already exists
+    if [[ -f "$storage_dir/$filename" ]]; then
+        echo -e "${YELLOW}Warning: File already exists in storage${NC}"
+        read -p "Overwrite existing file? (y/N): " -r
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo "Operation cancelled."
             exit 0
         fi
         
-        # Remove existing ISO first
-        echo "Removing existing ISO..."
-        remove_iso "$iso_name" --quiet
+        # Remove existing file first
+        echo "Removing existing file..."
+        if $is_iso; then
+            remove_iso "$file_name" --quiet
+        else
+            remove_img "$file_name" --quiet
+        fi
     fi
     
     # Create directories
     create_directories
     
-    # Copy ISO to storage
-    echo -n "Copying ISO to storage directory... "
-    if cp "$iso_path" "$ISO_STORAGE_DIR/"; then
+    # Copy file to storage
+    echo -n "Copying $(if $is_iso; then echo "ISO"; else echo "IMG"; fi) to storage directory... "
+    if cp "$file_path" "$storage_dir/"; then
         echo -e "${GREEN}OK${NC}"
-        chmod 644 "$ISO_STORAGE_DIR/$iso_filename"
+        chmod 644 "$storage_dir/$filename"
     else
         echo -e "${RED}Failed${NC}"
-        echo "Error: Could not copy ISO file"
+        echo "Error: Could not copy file"
         exit 1
     fi
-
-    # Ensure direct HTTP access to the raw ISO (for iso-url= usage if needed)
-    # Some environments return 403 when using a symlink that points outside the docroot
-    # so we create a hard link if possible (fallback to copy) inside $HTTP_ISO_DIR.
-    local http_iso_target="$HTTP_ISO_DIR/${iso_filename}"
-    echo -n "Preparing ISO for direct HTTP access... "
-    if [[ -f "$http_iso_target" ]]; then
-        rm -f "$http_iso_target"
-    fi
-    if ln "$iso_path" "$http_iso_target" 2>/dev/null; then
-        echo -e "${GREEN}hard link${NC}"
-    elif cp "$iso_path" "$http_iso_target" 2>/dev/null; then
-        echo -e "${YELLOW}copied${NC}"
-    else
-        echo -e "${RED}Failed${NC}"
-        echo "Warning: Could not place ISO in HTTP root; iso-url boots may fail (403)." >&2
-    fi
-    chown www-data:www-data "$http_iso_target" 2>/dev/null || true
-    chmod 644 "$http_iso_target" 2>/dev/null || true
     
-    local stored_iso="$ISO_STORAGE_DIR/$iso_filename"
-    local mount_point="$MOUNT_BASE_DIR/$iso_name"
-    local iso_info_file="$ISO_STORAGE_DIR/${iso_name}.info"
+    local stored_file="$storage_dir/$filename"
+    local mount_point="$MOUNT_BASE_DIR/$file_name"
+    local info_file="$storage_dir/${file_name}.info"
     
     mkdir -p "$mount_point"
     
-    # Detect ISO information
-    if ! detect_iso_info "$stored_iso" "$mount_point" "$iso_info_file"; then
-        echo "Error: Could not analyze ISO file"
-        rm -f "$stored_iso"
-        exit 1
-    fi
-    
-    # Extract boot files
-    if ! extract_boot_files "$stored_iso" "$iso_name" "$mount_point" "$iso_info_file"; then
-        echo "Error: Could not extract boot files"
-        rm -f "$stored_iso" "$iso_info_file"
-        exit 1
-    fi
-    
-    # Setup NFS and HTTP access
-    if ! setup_iso_access "$stored_iso" "$iso_name" "$mount_point" "$iso_info_file"; then
-        echo "Error: Could not setup ISO access"
-        rm -f "$stored_iso" "$iso_info_file"
-        exit 1
+    if $is_iso; then
+        # Process ISO file using existing logic
+        # Ensure direct HTTP access to the raw ISO
+        local http_iso_target="$HTTP_ISO_DIR/${filename}"
+        echo -n "Preparing ISO for direct HTTP access... "
+        if [[ -f "$http_iso_target" ]]; then
+            rm -f "$http_iso_target"
+        fi
+        if ln "$file_path" "$http_iso_target" 2>/dev/null; then
+            echo -e "${GREEN}hard link${NC}"
+        elif cp "$file_path" "$http_iso_target" 2>/dev/null; then
+            echo -e "${YELLOW}copied${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            echo "Warning: Could not place ISO in HTTP root; iso-url boots may fail (403)." >&2
+        fi
+        chown www-data:www-data "$http_iso_target" 2>/dev/null || true
+        chmod 644 "$http_iso_target" 2>/dev/null || true
+        
+        # Detect ISO information
+        if ! detect_iso_info "$stored_file" "$mount_point" "$info_file"; then
+            echo "Error: Could not analyze ISO file"
+            rm -f "$stored_file"
+            exit 1
+        fi
+        
+        # Extract boot files
+        if ! extract_boot_files "$stored_file" "$file_name" "$mount_point" "$info_file"; then
+            echo "Error: Could not extract boot files"
+            rm -f "$stored_file" "$info_file"
+            exit 1
+        fi
+        
+        # Setup NFS and HTTP access
+        if ! setup_iso_access "$stored_file" "$file_name" "$mount_point" "$info_file"; then
+            echo "Error: Could not setup ISO access"
+            rm -f "$stored_file" "$info_file"
+            exit 1
+        fi
+        
+        echo
+        echo -e "${GREEN}=== ISO Successfully Added ===${NC}"
+        echo "ISO: $filename"
+        echo "Name: $file_name"
+        echo "Storage: $stored_file"
+        echo "NFS Mount: $NFS_ISO_DIR/$file_name"
+        echo "HTTP URL: http://$PXE_SERVER_IP/iso/$file_name/"
+        echo "GRUB Menu: Updated with working NFS boot configuration"
+        
+    else
+        # Process IMG file using new logic
+        # Detect IMG information
+        if ! detect_img_info "$stored_file" "$mount_point" "$info_file"; then
+            echo "Error: Could not analyze IMG file"
+            rm -f "$stored_file"
+            exit 1
+        fi
+        
+        # Extract boot files if they exist (optional for IMG files)
+        if extract_boot_files "$stored_file" "$file_name" "$mount_point" "$info_file" 2>/dev/null; then
+            echo "Boot files extracted from IMG"
+        else
+            echo "No extractable boot files found in IMG (will use HTTP boot)"
+        fi
+        
+        # Setup IMG HTTP access
+        if ! setup_img_http_access "$stored_file" "$file_name"; then
+            echo "Error: Could not setup IMG HTTP access"
+            rm -f "$stored_file" "$info_file"
+            exit 1
+        fi
+        
+        echo
+        echo -e "${GREEN}=== IMG Successfully Added ===${NC}"
+        echo "IMG: $filename"
+        echo "Name: $file_name"
+        echo "Storage: $stored_file"
+        echo "HTTP URL: http://$PXE_SERVER_IP/images/$file_name.img"
+        echo "GRUB Menu: Updated with HTTP boot configuration"
     fi
     
     # Update PXE menu
-    if ! update_pxe_menu "$iso_name" "$iso_info_file"; then
+    if ! update_pxe_menu "$file_name" "$info_file"; then
         echo "Error: Could not update PXE menu"
         exit 1
     fi
     
     echo
-    echo -e "${GREEN}=== ISO Successfully Added ===${NC}"
-    echo "ISO: $iso_filename"
-    echo "Name: $iso_name"
-    echo "Storage: $stored_iso"
-    echo "NFS Mount: $NFS_ISO_DIR/$iso_name"
-    echo "NFS Direct: /var/www/html/pxe/iso-direct/$iso_name"
-    echo "HTTP URL: http://$PXE_SERVER_IP/iso/$iso_name/"
-    echo "HTTP Direct: http://$PXE_SERVER_IP/iso-direct/$iso_name/"
-    echo "GRUB Menu: Updated with working NFS boot configuration"
-    echo
-    echo "The ISO is now available for network installation using the proven approach."
-    echo "Boot via UEFI PXE and select '$RELEASE_NAME (Manual Install)' or '(Auto Install)'"
+    echo "The $(if $is_iso; then echo "ISO"; else echo "IMG"; fi) is now available for network installation."
+    echo "Boot via UEFI PXE and select the appropriate menu entry."
     
     return 0
+}
+
+# Function to add ISO (backward compatibility wrapper)
+add_iso() {
+    add_image "$@"
 }
 
 # Function to remove ISO
@@ -829,76 +1151,214 @@ remove_iso() {
     return 0
 }
 
-# Function to list ISOs
+# Function to remove IMG file
+remove_img() {
+    local img_name="$1"
+    local quiet_mode="${2:-}"
+    
+    if [[ -z "$img_name" ]]; then
+        echo -e "${RED}Error: IMG name required${NC}"
+        usage
+        exit 1
+    fi
+    
+    # Remove .img extension if provided
+    img_name="${img_name%.img}"
+    
+    if [[ "$quiet_mode" != "--quiet" ]]; then
+        echo "=== Removing IMG: $img_name ==="
+        echo "Date: $(date)"
+        echo
+    fi
+    
+    local img_file="$IMG_STORAGE_DIR/${img_name}.img"
+    local img_info_file="$IMG_STORAGE_DIR/${img_name}.info"
+    local kernel_dir="$TFTP_KERNELS_DIR/$img_name"
+    local initrd_dir="$TFTP_INITRD_DIR/$img_name"
+    local http_img_file="$HTTP_IMAGES_DIR/${img_name}.img"
+    
+    # Check if IMG exists
+    if [[ ! -f "$img_file" ]]; then
+        echo -e "${RED}Error: IMG '$img_name' not found${NC}"
+        exit 1
+    fi
+    
+    # Remove files and directories
+    echo -n "Removing files... "
+    rm -f "$img_file" "$img_info_file"
+    
+    # Remove TFTP files if they exist
+    rm -rf "$kernel_dir" "$initrd_dir"
+    
+    # Remove HTTP IMG file
+    if [[ -f "$http_img_file" ]]; then
+        rm -f "$http_img_file"
+    fi
+    echo -e "${GREEN}OK${NC}"
+    
+    # Remove from PXE menu
+    echo -n "Updating PXE menu... "
+    if [[ -f "$GRUB_MENU_FILE" ]]; then
+        # Create backup
+        cp "$GRUB_MENU_FILE" "$GRUB_MENU_FILE.backup.$(date +%Y%m%d_%H%M%S)"
+        
+        # Remove the menu entry
+        local temp_file="/tmp/pxe_menu_temp.$$"
+        awk -v label="LABEL $img_name" '
+            $0 ~ "^LABEL " && $0 != label { print_block=1 }
+            $0 == label { print_block=0 }
+            print_block { print }
+            $0 != label && $0 !~ "^LABEL " && print_block==1 { print }
+        ' "$GRUB_MENU_FILE" > "$temp_file"
+        
+        mv "$temp_file" "$GRUB_MENU_FILE"
+        chown tftp:tftp "$GRUB_MENU_FILE"
+        chmod 644 "$GRUB_MENU_FILE"
+        
+        # Restart TFTP service
+        systemctl restart tftpd-hpa 2>/dev/null
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${YELLOW}Menu file not found${NC}"
+    fi
+    
+    if [[ "$quiet_mode" != "--quiet" ]]; then
+        echo
+        echo -e "${GREEN}IMG '$img_name' removed successfully${NC}"
+    fi
+    
+    return 0
+}
+
+# Function to list ISOs and IMGs
 list_isos() {
-    echo "=== Available ISOs ==="
+    echo "=== Available Files ==="
     echo "Date: $(date)"
     echo
     
-    if [[ ! -d "$ISO_STORAGE_DIR" ]] || [[ -z "$(ls -A "$ISO_STORAGE_DIR"/*.iso 2>/dev/null)" ]]; then
-        echo "No ISOs found."
+    local iso_count=0
+    local img_count=0
+    local has_files=false
+    
+    # Check if we have any files
+    if [[ -d "$ISO_STORAGE_DIR" ]] && [[ -n "$(ls -A "$ISO_STORAGE_DIR"/*.iso 2>/dev/null)" ]]; then
+        has_files=true
+    fi
+    if [[ -d "$IMG_STORAGE_DIR" ]] && [[ -n "$(ls -A "$IMG_STORAGE_DIR"/*.img 2>/dev/null)" ]]; then
+        has_files=true
+    fi
+    
+    if [[ "$has_files" == "false" ]]; then
+        echo "No ISO or IMG files found."
         echo
-        echo "Add ISOs with: sudo $0 add <iso-file>"
+        echo "Add files with: sudo $0 add <file.iso|file.img>"
         return 0
     fi
     
-    local iso_count=0
+    echo "┌─────────────────────────────────────────────────────────────────────────────────────┐"
+    echo "│ File Name                 │ Type │ Distribution          │ Arch   │ Status         │"
+    echo "├─────────────────────────────────────────────────────────────────────────────────────┤"
     
-    echo "┌─────────────────────────────────────────────────────────────────────────────────┐"
-    echo "│ ISO Name                  │ Distribution          │ Arch   │ Status             │"
-    echo "├─────────────────────────────────────────────────────────────────────────────────┤"
+    # List ISO files
+    if [[ -d "$ISO_STORAGE_DIR" ]]; then
+        for iso_file in "$ISO_STORAGE_DIR"/*.iso; do
+            if [[ -f "$iso_file" ]]; then
+                local iso_filename
+                iso_filename=$(basename "$iso_file")
+                local iso_name="${iso_filename%.iso}"
+                local iso_info_file="$ISO_STORAGE_DIR/${iso_name}.info"
+                
+                local distro="Unknown"
+                local arch="Unknown"
+                local release_name="Unknown"
+                local status="Inactive"
+                
+                # Read ISO info if available
+                if [[ -f "$iso_info_file" ]]; then
+                    source "$iso_info_file"
+                    distro="$RELEASE_NAME"
+                    arch="$ARCH"
+                fi
+                
+                # Check if mounted and accessible
+                local iso_mount_dir="$NFS_ISO_DIR/$iso_name"
+                if mountpoint -q "$iso_mount_dir" 2>/dev/null; then
+                    status="Active (NFS)"
+                fi
+                
+                # Truncate long names for display
+                local display_name="$iso_name"
+                if [[ ${#display_name} -gt 24 ]]; then
+                    display_name="${display_name:0:21}..."
+                fi
+                
+                local display_distro="$distro"
+                if [[ ${#display_distro} -gt 20 ]]; then
+                    display_distro="${display_distro:0:17}..."
+                fi
+                
+                printf "│ %-24s │ %-4s │ %-20s │ %-6s │ %-14s │\n" \
+                    "$display_name" "ISO" "$display_distro" "$arch" "$status"
+                
+                ((iso_count++))
+            fi
+        done
+    fi
     
-    for iso_file in "$ISO_STORAGE_DIR"/*.iso; do
-        if [[ -f "$iso_file" ]]; then
-            local iso_filename
-            iso_filename=$(basename "$iso_file")
-            local iso_name="${iso_filename%.iso}"
-            local iso_info_file="$ISO_STORAGE_DIR/${iso_name}.info"
-            
-            local distro="Unknown"
-            local arch="Unknown"
-            local release_name="Unknown"
-            local status="Inactive"
-            
-            # Read ISO info if available
-            if [[ -f "$iso_info_file" ]]; then
-                source "$iso_info_file"
-                distro="$RELEASE_NAME"
-                arch="$ARCH"
+    # List IMG files
+    if [[ -d "$IMG_STORAGE_DIR" ]]; then
+        for img_file in "$IMG_STORAGE_DIR"/*.img; do
+            if [[ -f "$img_file" ]]; then
+                local img_filename
+                img_filename=$(basename "$img_file")
+                local img_name="${img_filename%.img}"
+                local img_info_file="$IMG_STORAGE_DIR/${img_name}.info"
+                
+                local distro="Unknown"
+                local arch="Unknown"
+                local release_name="Unknown"
+                local status="Inactive"
+                
+                # Read IMG info if available
+                if [[ -f "$img_info_file" ]]; then
+                    source "$img_info_file"
+                    distro="$RELEASE_NAME"
+                    arch="$ARCH"
+                fi
+                
+                # Check if HTTP file exists
+                local http_img_file="$HTTP_IMAGES_DIR/${img_name}.img"
+                if [[ -f "$http_img_file" ]]; then
+                    status="Active (HTTP)"
+                fi
+                
+                # Truncate long names for display
+                local display_name="$img_name"
+                if [[ ${#display_name} -gt 24 ]]; then
+                    display_name="${display_name:0:21}..."
+                fi
+                
+                local display_distro="$distro"
+                if [[ ${#display_distro} -gt 20 ]]; then
+                    display_distro="${display_distro:0:17}..."
+                fi
+                
+                printf "│ %-24s │ %-4s │ %-20s │ %-6s │ %-14s │\n" \
+                    "$display_name" "IMG" "$display_distro" "$arch" "$status"
+                
+                ((img_count++))
             fi
-            
-            # Check if mounted and accessible
-            local iso_mount_dir="$NFS_ISO_DIR/$iso_name"
-            if mountpoint -q "$iso_mount_dir" 2>/dev/null; then
-                status="Active"
-            fi
-            
-            # Truncate long names for display
-            local display_name="$iso_name"
-            if [[ ${#display_name} -gt 24 ]]; then
-                display_name="${display_name:0:21}..."
-            fi
-            
-            local display_distro="$distro"
-            if [[ ${#display_distro} -gt 20 ]]; then
-                display_distro="${display_distro:0:17}..."
-            fi
-            
-            printf "│ %-24s │ %-20s │ %-6s │ %-18s │\n" \
-                "$display_name" "$display_distro" "$arch" "$status"
-            
-            ((iso_count++))
-        fi
-    done
+        done
+    fi
     
-    echo "└─────────────────────────────────────────────────────────────────────────────────┘"
+    echo "└─────────────────────────────────────────────────────────────────────────────────────┘"
     echo
-    echo "Total ISOs: $iso_count"
+    echo "Total: $iso_count ISOs, $img_count IMGs"
     echo
     echo "Commands:"
     echo "  View details: sudo $0 status"
-    echo "  Add new ISO: sudo $0 add <iso-file>"
-    echo "  Remove ISO:  sudo $0 remove <iso-name>"
+    echo "  Add new file: sudo $0 add <file.iso|file.img>"
+    echo "  Remove file:  sudo $0 remove <name>"
     
     return 0
 }
@@ -1338,11 +1798,37 @@ main() {
     case "${1:-}" in
         "add")
             check_root
-            add_iso "${2:-}"
+            add_image "${2:-}"
             ;;
         "remove")
             check_root
-            remove_iso "${2:-}"
+            # Intelligent remove - check both ISO and IMG storage
+            local name="${2:-}"
+            if [[ -z "$name" ]]; then
+                echo -e "${RED}Error: File name required${NC}"
+                usage
+                exit 1
+            fi
+            
+            # Remove extensions if provided
+            name="${name%.iso}"
+            name="${name%.img}"
+            
+            # Check what type of file exists and remove accordingly
+            local found=false
+            if [[ -f "$ISO_STORAGE_DIR/${name}.iso" ]]; then
+                remove_iso "$name"
+                found=true
+            fi
+            if [[ -f "$IMG_STORAGE_DIR/${name}.img" ]]; then
+                remove_img "$name"
+                found=true
+            fi
+            
+            if [[ "$found" == "false" ]]; then
+                echo -e "${RED}Error: File '$name' not found in ISO or IMG storage${NC}"
+                exit 1
+            fi
             ;;
         "list")
             list_isos
