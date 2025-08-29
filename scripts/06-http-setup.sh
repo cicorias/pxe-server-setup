@@ -90,6 +90,7 @@ create_http_directories() {
     echo -n "Creating HTTP subdirectories... "
     mkdir -p "$HTTP_ROOT/iso"
     mkdir -p "$HTTP_ROOT/iso-direct"
+    mkdir -p "$HTTP_ROOT/images"
     mkdir -p "$HTTP_ROOT/kickstart"
     mkdir -p "$HTTP_ROOT/preseed"
     mkdir -p "$HTTP_ROOT/scripts"
@@ -102,7 +103,7 @@ create_http_directories() {
     # Set proper permissions
     echo -n "Setting HTTP directory permissions... "
     chmod 755 "$HTTP_ROOT"
-    chmod -R 755 "$HTTP_ROOT"/{iso,iso-direct,kickstart,preseed,scripts,firmware,drivers,tools,autoinstall}
+    chmod -R 755 "$HTTP_ROOT"/{iso,iso-direct,images,kickstart,preseed,scripts,firmware,drivers,tools,autoinstall}
     chown -R www-data:www-data "$HTTP_ROOT"
     echo -e "${GREEN}OK${NC}"
 }
@@ -249,6 +250,30 @@ server {
         autoindex_localtime on;
     }
     
+    # Images directory for IMG files
+    location /images/ {
+        autoindex on;
+        autoindex_exact_size on;
+        autoindex_localtime on;
+        
+        # Large file optimization for IMG files
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        
+        # Support for partial content requests (Range headers) for large IMG files
+        add_header Accept-Ranges bytes;
+        
+        # Cache headers for IMG files
+        expires 1d;
+        add_header Cache-Control "public, immutable";
+        
+        # MIME type for IMG files
+        location ~* \\.img$ {
+            add_header Content-Type application/octet-stream;
+        }
+    }
+    
     # Health check endpoint
     location /health {
         access_log off;
@@ -338,6 +363,12 @@ create_default_pages() {
                 <h3>💿 ISO Images</h3>
                 <p>Operating system installation images</p>
                 <a href="/iso/">Browse ISO Files →</a>
+            </div>
+            
+            <div class="dir-card">
+                <h3>💾 IMG Images</h3>
+                <p>Filesystem and disk images for HTTP boot</p>
+                <a href="/images/">Browse IMG Files →</a>
             </div>
             
             <div class="dir-card">
@@ -671,6 +702,7 @@ show_summary() {
     echo "  ├── index.html        (main page)"
     echo "  ├── status.html       (status page)"
     echo "  ├── iso/             (→ $NFS_ROOT/iso)"
+    echo "  ├── images/          (IMG files for HTTP boot)"
     echo "  ├── kickstart/       (→ $NFS_ROOT/kickstart)"
     echo "  ├── preseed/         (→ $NFS_ROOT/preseed)"
     echo "  ├── scripts/         (→ $NFS_ROOT/scripts)"
@@ -683,10 +715,11 @@ show_summary() {
     echo "  Health check: http://$PXE_SERVER_IP/health"
     echo "  Status page: http://$PXE_SERVER_IP/status"
     echo "  ISO files: http://$PXE_SERVER_IP/iso/"
+    echo "  IMG files: http://$PXE_SERVER_IP/images/"
     echo
     echo "Next steps:"
     echo "1. Create PXE menu: sudo ./07-pxe-menu.sh"
-    echo "2. Add ISO files: sudo ./08-iso-manager.sh add <iso-file>"
+    echo "2. Add ISO/IMG files: sudo ./08-iso-manager.sh add <file.iso|file.img>"
     echo "3. Test PXE boot with a client machine"
     echo
 }
