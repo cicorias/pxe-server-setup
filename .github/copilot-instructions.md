@@ -12,8 +12,8 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
   - `05-nfs-setup.sh`: Sets up NFS
   - `06-http-setup.sh`: Sets up HTTP
   - `07-pxe-menu.sh`: Configures PXE boot menu
-  - `08-iso-manager.sh`: Manages ISO files
-  - `09-uefi-pxe-setup.sh`: Configures UEFI PXE boot
+  - `50-iso-manager.sh`: Manages ISO files
+  - `08-uefi-pxe-setup.sh`: Configures UEFI PXE boot
   - `config.sh`: Central configuration variables
 - **Artifacts Directory**: Stores generated files and boot assets:
   - `iso/`: Uploaded ISO files
@@ -23,7 +23,7 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 
 ## Developer Workflows
 - **Configuration**: Copy and edit `scripts/config.sh.example` to `scripts/config.sh` before running scripts.
-- **Adding ISOs**: Place ISO files in `artifacts/iso/` and run `sudo ./scripts/08-iso-manager.sh add <iso>`.
+- **Adding ISOs**: Place ISO files in `artifacts/iso/` and run `sudo ./scripts/50-iso-manager.sh add <iso>`.
 - **PXE Menu**: Edit `artifacts/tftp/pxelinux.cfg/default` to customize boot options. Restart TFTP after changes.
 - **Service Logs**: Use `journalctl` for TFTP/DHCP and `tail` for HTTP logs. See README for exact commands.
 - **Troubleshooting**: Refer to `docs/troubleshooting.md` for common issues and solutions.
@@ -31,7 +31,7 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 ## Project-Specific Patterns
 - **Idempotent Scripts**: All setup scripts are designed to be safely re-run.
 - **DHCP Modes**: Choose between local DHCP (`--local`) or external DHCP (`--external`) via script flags.
-- **ISO Management**: Use `08-iso-manager.sh` for add/list/remove operations. Supports batch ISO addition.
+- **ISO Management**: Use `50-iso-manager.sh` for add/list/remove operations. Supports batch ISO addition.
 - **Artifacts Exclusion**: `artifacts/` is excluded from git; treat as ephemeral build/output directory.
 
 ## Integration Points
@@ -46,8 +46,8 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 
 ## Example Commands
 - `sudo ./install.sh` — Full automated setup
-- `sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-server.iso` — Add ISO
-- `sudo ./scripts/08-iso-manager.sh list` — List bootable ISOs
+- `sudo ./scripts/50-iso-manager.sh add ubuntu-24.04-server.iso` — Add ISO
+- `sudo ./scripts/50-iso-manager.sh list` — List bootable ISOs
 - `sudo nano artifacts/tftp/pxelinux.cfg/default` — Edit PXE menu
 
 ## References

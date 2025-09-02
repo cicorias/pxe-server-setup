@@ -1,5 +1,5 @@
 #!/bin/bash
-# 09-uefi-pxe-setup.sh
+# 08-uefi-pxe-setup.sh
 # Add UEFI PXE boot support to existing PXE server
 
 set -euo pipefail

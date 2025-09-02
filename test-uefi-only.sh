@@ -35,8 +35,8 @@ scripts=(
     "scripts/03-tftp-setup.sh"
     "scripts/04-dhcp-setup.sh"
     "scripts/07-pxe-menu.sh"
-    "scripts/08-iso-manager.sh"
-    "scripts/09-uefi-pxe-setup.sh"
+    "scripts/08-uefi-pxe-setup.sh"
+    "scripts/50-iso-manager.sh"
     "scripts/validate-pxe.sh"
     "scripts/test-pxe-client-access.sh"
 )

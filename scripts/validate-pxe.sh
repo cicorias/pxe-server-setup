@@ -105,6 +105,6 @@ echo "=== Summary ==="
 echo "PXE server core services are configured and running."
 echo "Next steps:"
 echo "1. Create PXE menu: sudo ./scripts/07-pxe-menu.sh"
-echo "2. Add actual ISO: sudo ./scripts/08-iso-manager.sh add <iso-file>"
+echo "2. Add actual ISO: sudo ./scripts/50-iso-manager.sh add <iso-file>"
 echo "3. Test PXE boot with a client machine"
 echo

@@ -119,7 +119,7 @@ EOF
     mkdir -p "$TFTP_ROOT/boot"
     echo -e "${GREEN}OK${NC}"
     
-    # Note: UEFI PXE boot files will be set up by 09-uefi-pxe-setup.sh
+    # Note: UEFI PXE boot files will be set up by 08-uefi-pxe-setup.sh
     # This script only creates the basic TFTP structure
     
     # Create test file for verification

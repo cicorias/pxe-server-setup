@@ -125,7 +125,7 @@ print_header "Step 7: Configuring GRUB2 Boot Menu"
 
 # Step 8: Configure UEFI PXE Boot
 print_header "Step 8: Configuring UEFI PXE Boot"
-./09-uefi-pxe-setup.sh
+./08-uefi-pxe-setup.sh
 
 # Final validation
 print_header "Final Validation"
@@ -137,9 +137,9 @@ print_status "UEFI-Only PXE Server setup completed successfully!"
 echo ""
 print_status "Next steps:"
 print_status "1. Add the downloaded Ubuntu ISO:"
-print_status "   sudo ./scripts/08-iso-manager.sh add \$HOME/Downloads/ubuntu-24.04.3-live-server-amd64.iso"
+print_status "   sudo ./scripts/50-iso-manager.sh add \$HOME/Downloads/ubuntu-24.04.3-live-server-amd64.iso"
 print_status "2. Add additional ISO files to artifacts/iso/ directory"
-print_status "3. Run: sudo ./scripts/08-iso-manager.sh add <iso-file> for other ISOs"
+print_status "3. Run: sudo ./scripts/50-iso-manager.sh add <iso-file> for other ISOs"
 print_status "4. Configure client machines to boot from network (UEFI mode)"
 echo ""
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 08-iso-manager.sh
+# 50-iso-manager.sh
 # ISO management and PXE menu integration for PXE server setup
 
 set -euo pipefail

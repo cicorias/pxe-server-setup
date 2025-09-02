@@ -28,25 +28,25 @@ IMG files are now supported alongside ISO files, offering:
 ### Adding IMG Files
 ```bash
 # Add a filesystem image
-sudo ./scripts/08-iso-manager.sh add /path/to/custom-rootfs.img
+sudo ./scripts/50-iso-manager.sh add /path/to/custom-rootfs.img
 
 # Add a disk image
-sudo ./scripts/08-iso-manager.sh add /path/to/system-disk.img
+sudo ./scripts/50-iso-manager.sh add /path/to/system-disk.img
 
 # Add from current directory
-sudo ./scripts/08-iso-manager.sh add ubuntu-custom.img
+sudo ./scripts/50-iso-manager.sh add ubuntu-custom.img
 ```
 
 ### Listing Files
 ```bash
 # Shows both ISO and IMG files with type indicators
-sudo ./scripts/08-iso-manager.sh list
+sudo ./scripts/50-iso-manager.sh list
 ```
 
 ### Removing Files
 ```bash
 # Intelligent removal - detects ISO or IMG automatically
-sudo ./scripts/08-iso-manager.sh remove custom-rootfs
+sudo ./scripts/50-iso-manager.sh remove custom-rootfs
 ```
 
 ## Boot Methods
@@ -224,12 +224,12 @@ To migrate an existing ISO-only PXE server:
 
 3. **Regenerate GRUB config**:
    ```bash
-   sudo ./scripts/09-uefi-pxe-setup.sh
+   sudo ./scripts/08-uefi-pxe-setup.sh
    ```
 
 4. **Add IMG files**:
    ```bash
-   sudo ./scripts/08-iso-manager.sh add your-image.img
+   sudo ./scripts/50-iso-manager.sh add your-image.img
    ```
 
 ## Security Considerations

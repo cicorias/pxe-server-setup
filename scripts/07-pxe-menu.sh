@@ -3,7 +3,7 @@
 # PXE boot menu configuration for PXE server setup
 
 set -euo pipefail
-set -x
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -182,7 +182,7 @@ EOF
 setup_uefi_boot() {
     echo -e "${BLUE}Setting up UEFI boot requirements...${NC}"
     
-    # Note: UEFI boot files (bootx64.efi, etc.) are set up by 09-uefi-pxe-setup.sh
+    # Note: UEFI boot files (bootx64.efi, etc.) are set up by 08-uefi-pxe-setup.sh
     echo -n "Verifying GRUB configuration exists... "
     if [[ -f "$TFTP_ROOT/grub/grub.cfg" ]]; then
         echo -e "${GREEN}OK${NC}"
@@ -231,7 +231,7 @@ verify_pxe_menu() {
         exit 1
     fi
     
-    # Check UEFI boot files (will be set up by 09-uefi-pxe-setup.sh)
+    # Check UEFI boot files (will be set up by 08-uefi-pxe-setup.sh)
     echo -n "Checking UEFI boot files... "
     if [[ -f "$TFTP_ROOT/bootx64.efi" ]]; then
         echo -e "${GREEN}Present${NC}"
@@ -315,15 +315,15 @@ show_summary() {
     echo "  • Reboot/Shutdown"
     echo
     echo "ISO Integration:"
-    echo "  ISOs will be automatically added by: sudo ./08-iso-manager.sh add <iso>"
+    echo "  ISOs will be automatically added by: sudo ./50-iso-manager.sh add <iso>"
     echo
     echo "Web Interface:"
     echo "  http://$PXE_SERVER_IP/ - Main server interface"
     echo "  http://$PXE_SERVER_IP/status - Server status"
     echo
     echo "Next steps:"
-    echo "1. Set up UEFI boot files: sudo ./09-uefi-pxe-setup.sh"
-    echo "2. Add ISO files: sudo ./08-iso-manager.sh add <iso-file>"
+    echo "1. Set up UEFI boot files: sudo ./08-uefi-pxe-setup.sh"
+    echo "2. Add ISO files: sudo ./50-iso-manager.sh add <iso-file>"
     echo "3. Test UEFI PXE boot with a client machine"
     echo "4. Monitor logs: sudo journalctl -u tftpd-hpa -f"
     echo

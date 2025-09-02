@@ -11,7 +11,7 @@ Updated all setup scripts and configuration files to implement the **working mou
 
 ## Files Updated
 
-### 1. scripts/08-iso-manager.sh
+### 1. scripts/50-iso-manager.sh
 **Purpose**: Primary ISO management script
 **Critical Changes**:
 - **Boot Parameters**: Updated Ubuntu Server detection to use `nfsroot=$PXE_SERVER_IP:$NFS_ROOT/iso/##ISO_NAME##` instead of extracted file paths
@@ -93,7 +93,7 @@ echo "$iso_mount_dir $SUBNET/$NETMASK(ro,sync,no_subtree_check,no_root_squash)" 
 
 ### Test New ISO Addition
 ```bash
-sudo ./scripts/08-iso-manager.sh add ubuntu-24.04.3-live-server-amd64.iso
+sudo ./scripts/50-iso-manager.sh add ubuntu-24.04.3-live-server-amd64.iso
 ```
 
 **Expected Results**:

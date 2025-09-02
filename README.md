@@ -37,8 +37,8 @@ pxe-server-setup/
 │   ├── 05-nfs-setup.sh     # NFS server configuration
 │   ├── 06-http-setup.sh    # HTTP server configuration
 │   ├── 07-pxe-menu.sh      # PXE boot menu configuration
-│   ├── 08-iso-manager.sh   # ISO management utilities
-│   ├── 09-uefi-pxe-setup.sh # UEFI PXE support (Generation 2 VMs)
+│   ├── 08-uefi-pxe-setup.sh # UEFI PXE support (Generation 2 VMs)
+│   ├── 50-iso-manager.sh   # ISO management utilities
 │   └── config.sh           # Configuration variables
 ├── artifacts/              # Generated files (excluded from git)
 │   ├── iso/               # ISO storage directory
@@ -58,8 +58,8 @@ pxe-server-setup/
 - **05-nfs-setup.sh** - NFS server for serving installation media
 - **06-http-setup.sh** - HTTP server configuration (nginx)
 - **07-pxe-menu.sh** - PXE boot menu creation with professional interface
-- **08-iso-manager.sh** - ISO management and mounting utilities with automatic PXE integration
-- **09-uefi-pxe-setup.sh** - UEFI PXE support for Generation 2 VMs
+- **08-uefi-pxe-setup.sh** - UEFI PXE support for Generation 2 VMs
+- **50-iso-manager.sh** - ISO management and mounting utilities with automatic PXE integration
 
 ### 📋 Core Services Status:
 - ✅ **TFTP Server** (tftpd-hpa) - Serving PXE boot files
@@ -88,7 +88,7 @@ cd ~/Downloads
 wget https://mirrors.egr.msu.edu/ubuntu-iso/24.04.3/ubuntu-24.04.3-live-server-amd64.iso
 ```
 
-**Note:** This ISO will be added to the PXE server using the `08-iso-manager.sh` script after the initial setup is complete.
+**Note:** This ISO will be added to the PXE server using the `50-iso-manager.sh` script after the initial setup is complete.
 
 ## Quick Start
 
@@ -153,8 +153,8 @@ sudo ./04-dhcp-setup.sh
 sudo ./05-nfs-setup.sh
 sudo ./06-http-setup.sh
 sudo ./07-pxe-menu.sh
-sudo ./09-uefi-pxe-setup.sh  # Optional: for Generation 2 VM support
-# Add ISOs with: sudo ./08-iso-manager.sh add <iso-file>
+sudo ./08-uefi-pxe-setup.sh  # Optional: for Generation 2 VM support
+# Add ISOs with: sudo ./50-iso-manager.sh add <iso-file>
 ```
 
 ### UEFI Support (Generation 2 VMs)
@@ -162,7 +162,7 @@ sudo ./09-uefi-pxe-setup.sh  # Optional: for Generation 2 VM support
 For modern UEFI systems and Generation 2 VMs, run the UEFI setup script:
 
 ```bash
-sudo ./scripts/09-uefi-pxe-setup.sh
+sudo ./scripts/08-uefi-pxe-setup.sh
 ```
 
 This script:
@@ -189,7 +189,7 @@ sudo ./scripts/99-cleanup.sh
 sudo ./install.sh --uefi --local-dhcp
 
 # now add the ISO to bootloader
-sudo ./scripts/08-iso-manager.sh add $HOME/Downloads/ubuntu-24.04.3-live-server-amd64.iso
+sudo ./scripts/50-iso-manager.sh add $HOME/Downloads/ubuntu-24.04.3-live-server-amd64.iso
 ```
 
 ## Configuration Options
@@ -213,7 +213,7 @@ The setup supports two DHCP modes:
 Place ISO files in the `artifacts/iso/` directory and run:
 
 ```bash
-sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-server.iso
+sudo ./scripts/50-iso-manager.sh add ubuntu-24.04-server.iso
 ```
 
 ### Virtual Machine Support
@@ -233,7 +233,7 @@ The PXE server supports both BIOS and UEFI network booting:
 - Requires additional UEFI setup:
 
 ```bash
-sudo ./scripts/09-uefi-pxe-setup.sh
+sudo ./scripts/08-uefi-pxe-setup.sh
 ```
 
 **VM Configuration Requirements**:
@@ -366,24 +366,27 @@ sudo ./06-http-setup.sh
 # 7. PXE boot menu creation
 sudo ./07-pxe-menu.sh
 
-# 8. Add ISO files
-sudo ./08-iso-manager.sh add ubuntu-24.04-server.iso
+# 8. UEFI PXE setup
+sudo ./08-uefi-pxe-setup.sh
+
+# 9. Add ISO files
+sudo ./50-iso-manager.sh add ubuntu-24.04-server.iso
 ```
 
 ### ISO Management
 
 ```bash
 # Add single ISO
-sudo ./scripts/08-iso-manager.sh add <iso-file>
+sudo ./scripts/50-iso-manager.sh add <iso-file>
 
 # Add multiple ISOs
-sudo ./scripts/08-iso-manager.sh add *.iso
+sudo ./scripts/50-iso-manager.sh add *.iso
 
 # List available ISOs
-sudo ./scripts/08-iso-manager.sh list
+sudo ./scripts/50-iso-manager.sh list
 
 # Remove ISO
-sudo ./scripts/08-iso-manager.sh remove <iso-file>
+sudo ./scripts/50-iso-manager.sh remove <iso-file>
 ```
 
 ### Service Management
@@ -416,8 +419,8 @@ sudo systemctl restart nfs-kernel-server
 | `05-nfs-setup.sh` | NFS server setup | Network config set | ✅ ISO serving, directory structure |
 | `06-http-setup.sh` | HTTP server setup | NFS configured | 🚧 Web installations, configs |
 | `07-pxe-menu.sh` | PXE menu creation | HTTP configured | 🚧 Boot menu, ISO integration |
-| `08-iso-manager.sh` | ISO management | All services ready | 🚧 Add/remove/list ISOs |
-| `09-uefi-pxe-setup.sh` | UEFI PXE support | TFTP & DHCP ready | ✅ Generation 2 VM, GRUB EFI |
+| `08-uefi-pxe-setup.sh` | UEFI PXE support | TFTP & DHCP ready | ✅ Generation 2 VM, GRUB EFI |
+| `50-iso-manager.sh` | ISO management | All services ready | 🚧 Add/remove/list ISOs |
 | `validate-pxe.sh` | System validation | Any time | ✅ Service status, connectivity tests |
 
 ### TFTP Server Configuration
@@ -646,7 +649,7 @@ sudo systemctl reload nginx
 wget https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso
 
 # Add to PXE server
-sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-live-server-amd64.iso
+sudo ./scripts/50-iso-manager.sh add ubuntu-24.04-live-server-amd64.iso
 ```
 
 ### Adding Multiple ISOs
@@ -654,14 +657,14 @@ sudo ./scripts/08-iso-manager.sh add ubuntu-24.04-live-server-amd64.iso
 ```bash
 # Add multiple distributions
 for iso in *.iso; do
-    sudo ./scripts/08-iso-manager.sh add "$iso"
+    sudo ./scripts/50-iso-manager.sh add "$iso"
 done
 ```
 
 ### Listing Available Boot Options
 
 ```bash
-sudo ./scripts/08-iso-manager.sh list
+sudo ./scripts/50-iso-manager.sh list
 ```
 
 ## Troubleshooting
@@ -703,7 +706,7 @@ sudo systemctl restart tftpd-hpa
 ### Removing ISOs
 
 ```bash
-sudo ./scripts/08-iso-manager.sh remove ubuntu-24.04-server.iso
+sudo ./scripts/50-iso-manager.sh remove ubuntu-24.04-server.iso
 ```
 
 ### Backup Configuration

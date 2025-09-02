@@ -374,7 +374,7 @@ show_summary() {
     echo "Next steps:"
     echo "1. Set up HTTP server: sudo ./06-http-setup.sh"
     echo "2. Create PXE menu: sudo ./07-pxe-menu.sh"
-    echo "3. Add ISO files: sudo ./08-iso-manager.sh add <iso-file>"
+    echo "3. Add ISO files: sudo ./50-iso-manager.sh add <iso-file>"
     echo
 }
 

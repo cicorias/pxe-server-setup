@@ -719,7 +719,7 @@ show_summary() {
     echo
     echo "Next steps:"
     echo "1. Create PXE menu: sudo ./07-pxe-menu.sh"
-    echo "2. Add ISO/IMG files: sudo ./08-iso-manager.sh add <file.iso|file.img>"
+    echo "2. Add ISO/IMG files: sudo ./50-iso-manager.sh add <file.iso|file.img>"
     echo "3. Test PXE boot with a client machine"
     echo
 }

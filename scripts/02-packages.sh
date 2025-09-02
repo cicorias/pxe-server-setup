@@ -353,7 +353,7 @@ show_next_steps() {
     echo "3. Configure NFS: sudo ./05-nfs-setup.sh"
     echo "4. Set up HTTP server: sudo ./06-http-setup.sh"
     echo "5. Create PXE menu: sudo ./07-pxe-menu.sh"
-    echo "6. Add ISO files: sudo ./08-iso-manager.sh add <iso-file>"
+    echo "6. Add ISO files: sudo ./50-iso-manager.sh add <iso-file>"
     echo
     echo "Or run all remaining steps: sudo ../install.sh (from scripts directory)"
     echo
