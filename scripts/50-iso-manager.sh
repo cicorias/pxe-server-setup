@@ -778,7 +778,7 @@ update_grub_menu() {
     local iso_name="$1"
     local iso_info_file="$2"
     
-    # Source ISO information
+    # Source ISO/IMG information
     source "$iso_info_file"
     
     local grub_file="$TFTP_ROOT/grub/grub.cfg"
@@ -792,26 +792,69 @@ update_grub_menu() {
         cp "$grub_file" "$grub_backup"
     fi
     
-    # Prepare boot parameters using the working mounted ISO approach
-    local nfs_path="$NFS_ROOT/iso/$iso_name"
+    # Determine if this is an IMG or ISO file
+    local is_img=false
+    if [[ -n "${IMG_TYPE:-}" ]]; then
+        is_img=true
+    fi
     
-    # Base parameters for casper live boot
-    local base_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
+    local manual_boot_params=""
+    local auto_boot_params=""
     
-    # Manual install: Comprehensive offline mode to prevent internet repository access
-    # Multiple parameters to ensure no network mirror access during installation
-    local manual_boot_params="$base_params apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
+    if [[ "$is_img" == "true" ]]; then
+        # IMG file: Use HTTP-based boot parameters from the IMG info
+        local img_boot_params="${BOOT_PARAMS}"
+        # Replace ##IMG_NAME## placeholder with actual filename
+        img_boot_params="${img_boot_params//##IMG_NAME##/$iso_name}"
+        
+        # For IMG files, use live-boot instead of casper
+        # IMG files from device-setup-initialization use 'boot=live fetch=http://...'
+        if [[ "$img_boot_params" =~ url=http ]]; then
+            # Convert url= parameter to fetch= for live-boot compatibility
+            img_boot_params="${img_boot_params//url=/fetch=}"
+        fi
+        
+        # Ensure boot=live is used for IMG files (not casper)
+        if [[ ! "$img_boot_params" =~ boot=live ]]; then
+            img_boot_params="boot=live $img_boot_params"
+        fi
+        
+        manual_boot_params="$img_boot_params"
+        auto_boot_params="$img_boot_params"
+        
+        # Add autoinstall for auto mode if not present
+        if [[ ! "$auto_boot_params" =~ autoinstall ]]; then
+            auto_boot_params="$auto_boot_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/"
+        fi
+    else
+        # ISO file: Use traditional NFS-based casper boot parameters
+        local nfs_path="$NFS_ROOT/iso/$iso_name"
+        
+        # Base parameters for casper live boot
+        local base_params="boot=casper netboot=nfs nfsroot=$PXE_SERVER_IP:$nfs_path ip=dhcp"
+        
+        # Manual install: Comprehensive offline mode to prevent internet repository access
+        # Multiple parameters to ensure no network mirror access during installation
+        manual_boot_params="$base_params apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
+        
+        # Auto install: Include autoinstall for unattended setup + comprehensive offline mode  
+        auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
+        
+        # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
+        manual_boot_params="$manual_boot_params ---"
+        auto_boot_params="$auto_boot_params ---"
+    fi
     
-    # Auto install: Include autoinstall for unattended setup + comprehensive offline mode  
-    local auto_boot_params="$base_params autoinstall ds=nocloud-net;s=http://$PXE_SERVER_IP/autoinstall/ apt-setup/use_mirror=false apt-setup/no_mirror=true netcfg/get_hostname=ubuntu-install netcfg/choose_interface=auto netcfg/dhcp_timeout=60 debian-installer/allow_unauthenticated=true"
+    # Determine file type for GRUB comment
+    local file_type_desc="ISO"
+    if [[ "$is_img" == "true" ]]; then
+        file_type_desc="IMG"
+    fi
     
-    # Always terminate kernel cmdline with '---' delimiter for Ubuntu casper
-    manual_boot_params="$manual_boot_params ---"
-    auto_boot_params="$auto_boot_params ---"
-    
-    # Create or update GRUB configuration using the working mounted ISO template
+    # Create or update GRUB configuration with appropriate boot method
     cat > "$grub_file" << EOF
-# GRUB Config (Working mounted ISO approach for proper casper compatibility)
+# GRUB Config - Supports both ISO (NFS+casper) and IMG (HTTP+live-boot) files
+# Current file type: $file_type_desc
 set timeout=15
 set default=0
 terminal_output console
