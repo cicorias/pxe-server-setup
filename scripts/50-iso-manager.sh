@@ -393,6 +393,25 @@ detect_img_info() {
             fi
             # For IMG files, we'll serve them directly over HTTP
             boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+            
+            # Look for Ubuntu kernel and initrd files (versioned)
+            if [[ -f "$mount_point/boot/vmlinuz" ]]; then
+                kernel_path="boot/vmlinuz"
+            elif [[ -n "$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)" ]]; then
+                # Use the first versioned kernel found
+                local kernel_file
+                kernel_file=$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)
+                kernel_path="boot/$(basename "$kernel_file")"
+            fi
+            
+            if [[ -f "$mount_point/boot/initrd.img" ]]; then
+                initrd_path="boot/initrd.img"
+            elif [[ -n "$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)" ]]; then
+                # Use the first versioned initrd found
+                local initrd_file
+                initrd_file=$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)
+                initrd_path="boot/$(basename "$initrd_file")"
+            fi
         elif [[ $os_info =~ ID=.*debian ]]; then
             distro="debian-img"
             if [[ $os_info =~ VERSION_ID=\"([^\"]+)\" ]]; then
@@ -400,6 +419,25 @@ detect_img_info() {
             fi
             release_name="Debian $version (IMG)"
             boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+            
+            # Look for Debian kernel and initrd files (versioned)
+            if [[ -f "$mount_point/boot/vmlinuz" ]]; then
+                kernel_path="boot/vmlinuz"
+            elif [[ -n "$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)" ]]; then
+                # Use the first versioned kernel found
+                local kernel_file
+                kernel_file=$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)
+                kernel_path="boot/$(basename "$kernel_file")"
+            fi
+            
+            if [[ -f "$mount_point/boot/initrd.img" ]]; then
+                initrd_path="boot/initrd.img"
+            elif [[ -n "$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)" ]]; then
+                # Use the first versioned initrd found
+                local initrd_file
+                initrd_file=$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)
+                initrd_path="boot/$(basename "$initrd_file")"
+            fi
         elif [[ $os_info =~ ID=.*centos ]] || [[ $os_info =~ ID=.*rhel ]]; then
             distro="rhel-img"
             if [[ $os_info =~ VERSION_ID=\"([^\"]+)\" ]]; then
@@ -407,6 +445,32 @@ detect_img_info() {
             fi
             release_name="RHEL/CentOS $version (IMG)"
             boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
+            
+            # Look for RHEL/CentOS kernel and initrd files (versioned)
+            if [[ -f "$mount_point/boot/vmlinuz" ]]; then
+                kernel_path="boot/vmlinuz"
+            elif [[ -n "$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)" ]]; then
+                # Use the first versioned kernel found
+                local kernel_file
+                kernel_file=$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)
+                kernel_path="boot/$(basename "$kernel_file")"
+            fi
+            
+            if [[ -f "$mount_point/boot/initrd.img" ]]; then
+                initrd_path="boot/initrd.img"
+            elif [[ -f "$mount_point/boot/initramfs.img" ]]; then
+                initrd_path="boot/initramfs.img"
+            elif [[ -n "$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)" ]]; then
+                # Use the first versioned initrd found
+                local initrd_file
+                initrd_file=$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)
+                initrd_path="boot/$(basename "$initrd_file")"
+            elif [[ -n "$(ls "$mount_point/boot/initramfs-"*.img 2>/dev/null | head -1)" ]]; then
+                # RHEL-style initramfs
+                local initrd_file
+                initrd_file=$(ls "$mount_point/boot/initramfs-"*.img 2>/dev/null | head -1)
+                initrd_path="boot/$(basename "$initrd_file")"
+            fi
         fi
         
         # Try to detect architecture
@@ -416,7 +480,7 @@ detect_img_info() {
             arch="i386"
         fi
         
-    elif [[ -f "$mount_point/boot/vmlinuz" ]] || [[ -f "$mount_point/vmlinuz" ]]; then
+    elif [[ -f "$mount_point/boot/vmlinuz" ]] || [[ -f "$mount_point/vmlinuz" ]] || [[ -n "$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null)" ]]; then
         # Generic Linux image with kernel in standard locations
         distro="linux-img"
         version="unknown"
@@ -424,11 +488,16 @@ detect_img_info() {
         release_name="Linux System (IMG)"
         boot_params="url=http://$PXE_SERVER_IP/images/##IMG_NAME##.img root=/dev/ram0 ip=dhcp"
         
-        # Try to find kernel and initrd
+        # Try to find kernel and initrd (including versioned)
         if [[ -f "$mount_point/boot/vmlinuz" ]]; then
             kernel_path="boot/vmlinuz"
         elif [[ -f "$mount_point/vmlinuz" ]]; then
             kernel_path="vmlinuz"
+        elif [[ -n "$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)" ]]; then
+            # Use the first versioned kernel found
+            local kernel_file
+            kernel_file=$(ls "$mount_point/boot/vmlinuz-"* 2>/dev/null | head -1)
+            kernel_path="boot/$(basename "$kernel_file")"
         fi
         
         if [[ -f "$mount_point/boot/initrd.img" ]]; then
@@ -437,6 +506,16 @@ detect_img_info() {
             initrd_path="initrd.img"
         elif [[ -f "$mount_point/boot/initramfs" ]]; then
             initrd_path="boot/initramfs"
+        elif [[ -n "$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)" ]]; then
+            # Use the first versioned initrd found
+            local initrd_file
+            initrd_file=$(ls "$mount_point/boot/initrd.img-"* 2>/dev/null | head -1)
+            initrd_path="boot/$(basename "$initrd_file")"
+        elif [[ -n "$(ls "$mount_point/boot/initramfs-"*.img 2>/dev/null | head -1)" ]]; then
+            # RHEL-style initramfs
+            local initrd_file
+            initrd_file=$(ls "$mount_point/boot/initramfs-"*.img 2>/dev/null | head -1)
+            initrd_path="boot/$(basename "$initrd_file")"
         fi
     fi
     

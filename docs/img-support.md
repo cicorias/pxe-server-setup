@@ -201,6 +201,89 @@ Both file types can coexist on the same PXE server:
    - Check client HTTP/1.1 support
    - Monitor network bandwidth
 
+
+#### Common Commands
+
+```shell
+# Check if kernel was extracted (replace 'your-img-name' with actual IMG name without extension)
+ls -la /var/lib/tftpboot/kernels/your-img-name/vmlinuz
+
+# Check if initrd was extracted  
+ls -la /var/lib/tftpboot/initrd/your-img-name/initrd
+
+# Example for an IMG named 'debian-minimal.img':
+ls -la /var/lib/tftpboot/kernels/debian-minimal/vmlinuz
+ls -la /var/lib/tftpboot/initrd/debian-minimal/initrd
+
+# Check the info file for extraction details
+cat /home/cicorias/g/pxe-server-setup/artifacts/img/your-img-name.info
+
+# Look for these fields:
+# KERNEL_PATH - Path where kernel was found in the IMG
+# INITRD_PATH - Path where initrd was found in the IMG
+
+# See all extracted kernels
+find /var/lib/tftpboot/kernels/ -name "vmlinuz" -exec ls -la {} \;
+
+# See all extracted initrd files  
+find /var/lib/tftpboot/initrd/ -name "initrd" -exec ls -la {} \;
+
+# Check ownership (should be tftp:tftp)
+ls -la /var/lib/tftpboot/kernels/
+ls -la /var/lib/tftpboot/initrd/
+
+# Check overall status including boot file extraction
+sudo ./scripts/50-iso-manager.sh status
+
+# This will show which IMG files have extractable boot files
+
+# Verify that the GRUB menu includes your IMG entries
+cat /var/lib/tftpboot/grub/grub.cfg
+
+# Look for menu entries that reference your IMG files
+# Entries with extracted kernels will have linux/initrd lines
+# Entries without extraction will be HTTP-only or informational
+
+
+# Create a temporary mount point
+sudo mkdir -p /mnt/temp-img
+
+# Mount the IMG file (adjust path as needed)
+sudo mount -o loop /home/cicorias/g/pxe-server-setup/artifacts/img/your-file.img /mnt/temp-img
+
+# Check for common kernel locations
+ls -la /mnt/temp-img/boot/vmlinuz* 2>/dev/null || echo "No kernel in /boot/"
+ls -la /mnt/temp-img/vmlinuz* 2>/dev/null || echo "No kernel in root"
+
+# Check for common initrd locations  
+ls -la /mnt/temp-img/boot/initrd* 2>/dev/null || echo "No initrd in /boot/"
+ls -la /mnt/temp-img/initrd* 2>/dev/null || echo "No initrd in root"
+
+# Unmount when done
+sudo umount /mnt/temp-img
+
+# When running the add command, look for these messages:
+sudo ./scripts/50-iso-manager.sh add your-file.img
+
+# Successful extraction shows:
+# "Extracting kernel... OK"
+# "Extracting initrd... OK"  
+# "Boot files extracted to: ..."
+
+# Failed extraction shows:
+# "No extractable boot files found in IMG (will use HTTP boot)"
+
+/var/lib/tftpboot/
+├── kernels/
+│   └── your-img-name/
+│       └── vmlinuz
+├── initrd/
+│   └── your-img-name/
+│       └── initrd
+└── grub/
+    └── grub.cfg (contains menu entries for your IMG)
+```
+
 ### Log Locations
 - **nginx access**: `/var/log/nginx/pxe-access.log`
 - **nginx errors**: `/var/log/nginx/pxe-error.log`
