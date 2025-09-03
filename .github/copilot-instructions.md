@@ -12,8 +12,8 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
   - `05-nfs-setup.sh`: Sets up NFS
   - `06-http-setup.sh`: Sets up HTTP
   - `07-pxe-menu.sh`: Configures PXE boot menu
-  - `50-iso-manager.sh`: Manages ISO files
   - `08-uefi-pxe-setup.sh`: Configures UEFI PXE boot
+  - `50-iso-manager.sh`: Manages ISO files
   - `config.sh`: Central configuration variables
 - **Artifacts Directory**: Stores generated files and boot assets:
   - `iso/`: Uploaded ISO files
@@ -40,7 +40,8 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 - **External DHCP**: If using network DHCP, ensure PXE options are set on the external server.
 
 ## Conventions
-- **Scripts**: Bash scripts, named and ordered by setup step. Always run as root/sudo.
+- **Scripts**: Bash scripts, named and ordered by setup step. Always run as root/sudo. Utilize Functions for modularity.
+- **File Structure**: Clear separation between scripts, configuration, and generated artifacts.
 - **Configuration**: All environment and network settings in `scripts/config.sh`.
 - **Documentation**: Key usage and troubleshooting in `README.md` and `docs/troubleshooting.md`.
 
@@ -66,5 +67,7 @@ This repository automates the setup of a PXE (Preboot Execution Environment) ser
 - BIOS Boot is deprecated
 - avoid symlinks and use copy instead
 - use native GRUB2 cli tools as needed
+- custom menu entries should be put in /etc/grub.d/40_custom and not in /boot/grub/grub.cfg
+- always run `update-grub` after modifying grub config files
 ---
 _Last updated: August 2025_
